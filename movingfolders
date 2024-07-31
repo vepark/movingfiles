@@ -1,0 +1,65 @@
+# Define parameters
+param (
+    [string]$IDList = "12345678_2345", # Comma-separated list of mainfolder_subfolder patterns
+    [string]$sourceBasePath = "Y:\path\to\source\folders",
+    [string]$destinationBasePath = "Y:\path\to\destination\folders"
+)
+
+# Split the IDList into an array
+$IDArray = $IDList -split ','
+
+foreach ($ID in $IDArray) {
+    # Split the ID into mainfolder and subfolder
+    $splitID = $ID -split '_'
+    $mainFolder = $splitID[0]
+    $subFolderPattern = $splitID[1]
+
+    # Construct the full path to the mainfolder
+    $mainFolderPath = Join-Path -Path $sourceBasePath -ChildPath $mainFolder
+
+    # Check if the mainfolder exists
+    if (-not (Test-Path -Path $mainFolderPath)) {
+        Write-Host "Main folder does not exist: $mainFolderPath" -ForegroundColor Red
+        continue
+    }
+
+    # Find the subfolder within the mainfolder
+    $subFolderPath = Get-ChildItem -Path $mainFolderPath -Directory -Recurse | Where-Object { $_.Name -like "*$subFolderPattern*" }
+
+    if (-not $subFolderPath) {
+        Write-Host "Subfolder matching $subFolderPattern not found within $mainFolderPath" -ForegroundColor Red
+        continue
+    }
+
+    # Construct the destination paths
+    $destMainFolderPath = Join-Path -Path $destinationBasePath -ChildPath $mainFolder
+    $destSubFolderPath = Join-Path -Path $destMainFolderPath -ChildPath $subFolderPath.Name
+
+    # Ensure the destination main folder path exists
+    if (-not (Test-Path -Path $destMainFolderPath)) {
+        New-Item -ItemType Directory -Path $destMainFolderPath -Force | Out-Null
+        Write-Host "Destination main folder created: $destMainFolderPath" -ForegroundColor Green
+    }
+
+    # Move the subfolder to the destination
+    Write-Host "Moving subfolder: $subFolderPath to $destSubFolderPath"
+
+    try {
+        Copy-Item -Path $subFolderPath.FullName -Destination $destSubFolderPath -Recurse -Force
+
+        # Verify if directory copied successfully
+        if (Test-Path -Path $destSubFolderPath) {
+            Write-Host "Successfully moved: $subFolderPath to $destSubFolderPath" -ForegroundColor Green
+
+            # Optionally remove the source directory after copy
+            Remove-Item -Path $subFolderPath.FullName -Recurse -Force
+        } else {
+            Write-Host "Failed to move: $subFolderPath to $destSubFolderPath" -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "Error moving subfolder: $subFolderPath to $destSubFolderPath" -ForegroundColor Red
+        Write-Host "Error: $_" -ForegroundColor Red
+    }
+}
+
+Write-Host "Script completed."
