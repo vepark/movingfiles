@@ -1,4 +1,5 @@
-# Define parameters
+
+
 # Function to log messages
 function Write-Log {
     param ([string]$message)
@@ -23,5 +24,5 @@ try {
     Move-Item -Path $SourceDir -Destination $DestinationDir -Recurse -Force
     Write-Log "Moved files from $SourceDir to $DestinationDir successfully"
 } catch {
-    Write-Log "Error moving files from $SourceDir to $DestinationDir: $_"
+    Write-Log "Error moving files from $SourceDir to $DestinationDir: $($_)"
 }
