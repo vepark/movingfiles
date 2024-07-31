@@ -1,65 +1,65 @@
 # Define parameters
 param (
-    [string]$IDList = "12345678_2345", # Comma-separated list of mainfolder_subfolder patterns
-    [string]$sourceBasePath = "Y:\path\to\source\folders",
-    [string]$destinationBasePath = "Y:\path\to\destination\folders"
+    [string]$sourceBasePath = "C:\path\to\source\folders",
+    [string]$destinationBasePath = "Z:\DMS",
+    [string[]]$IDList = @("18275218_3763", "18275218_3764")  # List of mainfolder_subfolder IDs
 )
 
-# Split the IDList into an array
-$IDArray = $IDList -split ','
+# Create a log file
+$logFile = "C:\path\to\logfile.log"
+function Write-Log {
+    param ([string]$message)
+    Add-Content -Path $logFile -Value "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) - $message"
+}
 
-foreach ($ID in $IDArray) {
-    # Split the ID into mainfolder and subfolder
-    $splitID = $ID -split '_'
-    $mainFolder = $splitID[0]
-    $subFolderPattern = $splitID[1]
+# Ensure the destination base path exists
+if (-not (Test-Path -Path $destinationBasePath)) {
+    New-Item -ItemType Directory -Path $destinationBasePath | Out-Null
+    Write-Log "Created destination base path: $destinationBasePath"
+}
 
-    # Construct the full path to the mainfolder
-    $mainFolderPath = Join-Path -Path $sourceBasePath -ChildPath $mainFolder
-
-    # Check if the mainfolder exists
-    if (-not (Test-Path -Path $mainFolderPath)) {
-        Write-Host "Main folder does not exist: $mainFolderPath" -ForegroundColor Red
-        continue
-    }
-
-    # Find the subfolder within the mainfolder
-    $subFolderPath = Get-ChildItem -Path $mainFolderPath -Directory -Recurse | Where-Object { $_.Name -like "*$subFolderPattern*" }
-
-    if (-not $subFolderPath) {
-        Write-Host "Subfolder matching $subFolderPattern not found within $mainFolderPath" -ForegroundColor Red
-        continue
-    }
-
-    # Construct the destination paths
-    $destMainFolderPath = Join-Path -Path $destinationBasePath -ChildPath $mainFolder
-    $destSubFolderPath = Join-Path -Path $destMainFolderPath -ChildPath $subFolderPath.Name
-
-    # Ensure the destination main folder path exists
-    if (-not (Test-Path -Path $destMainFolderPath)) {
-        New-Item -ItemType Directory -Path $destMainFolderPath -Force | Out-Null
-        Write-Host "Destination main folder created: $destMainFolderPath" -ForegroundColor Green
-    }
-
-    # Move the subfolder to the destination
-    Write-Host "Moving subfolder: $subFolderPath to $destSubFolderPath"
+# Function to copy files to DMS
+function Copy-ToDMS {
+    param (
+        [string]$sourcePath,
+        [string]$destinationPath
+    )
 
     try {
-        Copy-Item -Path $subFolderPath.FullName -Destination $destSubFolderPath -Recurse -Force
-
-        # Verify if directory copied successfully
-        if (Test-Path -Path $destSubFolderPath) {
-            Write-Host "Successfully moved: $subFolderPath to $destSubFolderPath" -ForegroundColor Green
-
-            # Optionally remove the source directory after copy
-            Remove-Item -Path $subFolderPath.FullName -Recurse -Force
+        if (Test-Path -Path $sourcePath) {
+            Write-Log "Copying files from $sourcePath to $destinationPath"
+            Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
+            if ($?) {
+                Write-Log "Copied files from $sourcePath to $destinationPath successfully"
+            } else {
+                Write-Log "Failed to copy items from $sourcePath to $destinationPath"
+            }
         } else {
-            Write-Host "Failed to move: $subFolderPath to $destSubFolderPath" -ForegroundColor Red
+            Write-Log "Source path not found: $sourcePath"
         }
     } catch {
-        Write-Host "Error moving subfolder: $subFolderPath to $destSubFolderPath" -ForegroundColor Red
-        Write-Host "Error: $_" -ForegroundColor Red
+        Write-Log "Error copying files from $sourcePath to $destinationPath: $_"
     }
 }
 
-Write-Host "Script completed."
+# Loop through each ID and copy the corresponding folders
+foreach ($ID in $IDList) {
+    $splitID = $ID -split '_'
+    $mainFolder = $splitID[0]
+    $subFolder = $splitID[1]
+
+    $sourcePath = Join-Path -Path $sourceBasePath -ChildPath $mainFolder
+    $destinationPath = Join-Path -Path $destinationBasePath -ChildPath $mainFolder
+
+    if (-not (Test-Path -Path $destinationPath)) {
+        New-Item -ItemType Directory -Path $destinationPath | Out-Null
+        Write-Log "Created destination main folder: $destinationPath"
+    }
+
+    $sourceSubFolderPath = Join-Path -Path $sourcePath -ChildPath $subFolder
+    $destinationSubFolderPath = Join-Path -Path $destinationPath -ChildPath $subFolder
+
+    Copy-ToDMS -sourcePath $sourceSubFolderPath -destinationPath $destinationSubFolderPath
+}
+
+Write-Log "Script completed."
