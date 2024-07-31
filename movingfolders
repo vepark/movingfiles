@@ -1,65 +1,30 @@
 # Define parameters
-param (
-    [string]$sourceBasePath = "C:\path\to\source\folders",
-    [string]$destinationBasePath = "Z:\DMS",
-    [string[]]$IDList = @("18275218_3763", "18275218_3764")  # List of mainfolder_subfolder IDs
-)
+$SourceDir = "Y:\EDM-DMS\BC0b0a58e8aadC48d_0C0a58e85ec32fa_1\CR COE Quality Control\DAQC Reviews\17694820"
+$DestinationDir = "C:\Users\u419556\Downloads\DMSExtract"
 
-# Create a log file
-$logFile = "C:\path\to\logfile.log"
+# Function to log messages
 function Write-Log {
     param ([string]$message)
+    $logFile = "C:\path\to\logfile.log"  # Update with the path to your log file
     Add-Content -Path $logFile -Value "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) - $message"
 }
 
-# Ensure the destination base path exists
-if (-not (Test-Path -Path $destinationBasePath)) {
-    New-Item -ItemType Directory -Path $destinationBasePath | Out-Null
-    Write-Log "Created destination base path: $destinationBasePath"
-}
-
-# Function to copy files to DMS
-function Copy-ToDMS {
-    param (
-        [string]$sourcePath,
-        [string]$destinationPath
-    )
-
+# Ensure the destination directory exists
+if (-not (Test-Path -Path $DestinationDir)) {
     try {
-        if (Test-Path -Path $sourcePath) {
-            Write-Log "Copying files from $sourcePath to $destinationPath"
-            Copy-Item -Path $sourcePath -Destination $destinationPath -Recurse -Force
-            if ($?) {
-                Write-Log "Copied files from $sourcePath to $destinationPath successfully"
-            } else {
-                Write-Log "Failed to copy items from $sourcePath to $destinationPath"
-            }
-        } else {
-            Write-Log "Source path not found: $sourcePath"
-        }
+        New-Item -ItemType Directory -Path $DestinationDir -Force | Out-Null
+        Write-Log "Created destination directory: $DestinationDir"
     } catch {
-        Write-Log "Error copying files from $sourcePath to $destinationPath: $_"
+        Write-Log "Error creating destination directory: $_"
+        throw
     }
 }
 
-# Loop through each ID and copy the corresponding folders
-foreach ($ID in $IDList) {
-    $splitID = $ID -split '_'
-    $mainFolder = $splitID[0]
-    $subFolder = $splitID[1]
-
-    $sourcePath = Join-Path -Path $sourceBasePath -ChildPath $mainFolder
-    $destinationPath = Join-Path -Path $destinationBasePath -ChildPath $mainFolder
-
-    if (-not (Test-Path -Path $destinationPath)) {
-        New-Item -ItemType Directory -Path $destinationPath | Out-Null
-        Write-Log "Created destination main folder: $destinationPath"
-    }
-
-    $sourceSubFolderPath = Join-Path -Path $sourcePath -ChildPath $subFolder
-    $destinationSubFolderPath = Join-Path -Path $destinationPath -ChildPath $subFolder
-
-    Copy-ToDMS -sourcePath $sourceSubFolderPath -destinationPath $destinationSubFolderPath
+# Move entire folder to DMS
+try {
+    Write-Log "Moving files from $SourceDir to $DestinationDir"
+    Move-Item -Path $SourceDir -Destination $DestinationDir -Recurse -Force
+    Write-Log "Moved files from $SourceDir to $DestinationDir successfully"
+} catch {
+    Write-Log "Error moving files from $SourceDir to $DestinationDir: $_"
 }
-
-Write-Log "Script completed."
