@@ -1,8 +1,8 @@
 # Define global parameters
-$BasePath = "Y:\Ekk"
-$DestinationPath = "C:\Users\yy8989\Downloads\"
+$BasePath = "Y:\"
+$DestinationPath = "C:\Users\87878\Downloads"
 $IDList = @(
-    "1234566_1234"
+    "123423_2346", "123423_2345"
     # Add more entries as needed
 )
 
@@ -20,7 +20,8 @@ function Copy-Subfolder {
         [string]$SourcePath,
         [string]$DestPath
     )
-    Copy-Item -Path $SourcePath -Destination $DestPath -Recurse -Force
+    # Copy the subfolder without duplicating its name
+    Copy-Item -Path $SourcePath\* -Destination $DestPath -Recurse -Force
 }
 
 # Define global result array
@@ -37,12 +38,14 @@ foreach ($ID in $IDList) {
     if (Test-Path $MainFolderPath) {
         $SubFolder = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -match $SubFolderID }
         if ($SubFolder) {
-            $DestSubPath = Join-Path $DestinationPath $SubFolder.Name
-            if (-not (Test-Path $DestSubPath)) {
-                New-Item -ItemType Directory -Path $DestSubPath | Out-Null
+            foreach ($folder in $SubFolder) {
+                $DestSubPath = Join-Path $DestinationPath $folder.Name
+                if (-not (Test-Path $DestSubPath)) {
+                    New-Item -ItemType Directory -Path $DestSubPath | Out-Null
+                }
+                Copy-Subfolder -SourcePath $folder.FullName -DestPath $DestSubPath
+                Log-Message "Copied $($folder.Name) from $($MainFolderPath) to $($DestSubPath)"
             }
-            Copy-Subfolder -SourcePath $SubFolder.FullName -DestPath $DestSubPath
-            Log-Message "Copied $($SubFolder.Name) from $($MainFolderPath) to $($DestSubPath)"
         } else {
             Log-Message "Subfolder containing ID '$SubFolderID' not found in main folder '$MainFolderID'"
         }
@@ -52,7 +55,6 @@ foreach ($ID in $IDList) {
 }
 
 Log-Message "Script completed."
-
 
 
 
