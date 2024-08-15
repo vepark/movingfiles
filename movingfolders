@@ -1,3 +1,62 @@
+function Copy-Subfolder {
+    param (
+        [string]$sourcePath,
+        [string]$destPath
+    )
+
+    Copy-Item -Path $sourcePath -Destination $destPath -Recurse -Force
+}
+
+# Define global result array
+$global:results = @()
+
+# Loop through each ID in the IDList
+foreach ($ID in $IDList) {
+    $splitID = $ID -split "_"
+    $mainFolder = $splitID[0]
+    $subFolder = $splitID[1]
+
+    $mainFolderPath = Join-Path $BasePath $mainFolder
+    if (Test-Path $mainFolderPath) {
+        $subFolderPath = Join-Path $mainFolderPath "*$subFolder*"
+        $subFolderName = Get-ChildItem -Path $mainFolderPath -Recurse -Directory | Where-Object { $_.FullName -like $subFolderPath }
+
+        if ($subFolderName) {
+            $sourcePath = $subFolderName.FullName
+            $destMainFolderPath = Join-Path $DestinationPath $mainFolder
+            $destPath = Join-Path $destMainFolderPath $subFolderName.Name
+
+            if (-not (Test-Path $destMainFolderPath)) {
+                New-Item -ItemType Directory -Path $destMainFolderPath | Out-Null
+            }
+
+            Copy-Subfolder -sourcePath $sourcePath -destPath $destPath
+
+            $global:results += [PSCustomObject]@{
+                MainFolder = $mainFolder
+                SubFolder = $subFolderName.Name
+                SourcePath = $sourcePath
+                DestinationPath = $destPath
+            }
+        } else {
+            Log-Message "Subfolder not found: $subFolder in $mainFolderPath"
+        }
+    } else {
+        Log-Message "Main folder path does not exist: $mainFolderPath"
+    }
+}
+
+# Output the results
+$global:results | Format-Table -AutoSize
+
+
+
+
+
+
+
+
+
 
 
 # Function to log messages
