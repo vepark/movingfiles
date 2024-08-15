@@ -1,17 +1,16 @@
-# Define global parameters
-$BasePath = "Y:\"
-$DestinationPath = "C:\Users\87878\Downloads"
-$IDList = @(
-    "123423_2346", "123423_2345"
-    # Add more entries as needed
+# Define parameters
+param (
+    [string]$BasePath = "Y:\DMS",
+    [string]$DestinationPath = "C:\Users\Downloads",
+    [string]$IDList = ""  # List of mainfolder_subfolder combinations
 )
 
 # Function to log messages
 function Log-Message {
     param (
-        [string]$Message
+        [string]$msg
     )
-    Write-Host "$(Get-Date -Format "yyyy-MM-dd HH:mm:ss") - $Message"
+    Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $msg"
 }
 
 # Function to copy subfolders to destination
@@ -20,74 +19,50 @@ function Copy-Subfolder {
         [string]$SourcePath,
         [string]$DestPath
     )
-    # Copy the subfolder without duplicating its name
     Copy-Item -Path $SourcePath\* -Destination $DestPath -Recurse -Force
 }
 
-# Define global result array
-$global:results = @()
+# Ensure the destination path exists
+if (-not (Test-Path -Path $DestinationPath)) {
+    New-Item -ItemType Directory -Path $DestinationPath | Out-Null
+}
 
 # Loop through each ID in the IDList
-foreach ($ID in $IDList) {
-    $IDParts = $ID -split "_"
-    $MainFolderID = $IDParts[0]
-    $SubFolderID = $IDParts[1]
+foreach ($ID in $IDList -split ',') {
+    $ID = $ID.Trim()
+    $IDs = $ID -split '_'
+    $MainFolder = $IDs[0]
+    $SubFolder = $IDs[1]
 
-    $MainFolderPath = Join-Path $BasePath $MainFolderID
+    $MainFolderPath = Join-Path -Path $BasePath -ChildPath $MainFolder
+    $SubFolderPattern = $SubFolder
 
-    if (Test-Path $MainFolderPath) {
-        $SubFolder = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -match $SubFolderID }
-        if ($SubFolder) {
-            foreach ($folder in $SubFolder) {
-                $DestSubPath = Join-Path $DestinationPath $folder.Name
-                if (-not (Test-Path $DestSubPath)) {
-                    New-Item -ItemType Directory -Path $DestSubPath | Out-Null
+    if (Test-Path -Path $MainFolderPath) {
+        $SubFolderPath = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -eq $SubFolderPattern }
+
+        if ($SubFolderPath) {
+            # Construct the destination path including the main folder
+            $DestSubPath = Join-Path -Path $DestinationPath -ChildPath "$MainFolder\$SubFolderPattern"
+            if (-not (Test-Path -Path $DestSubPath)) {
+                # Create the main folder at the destination first
+                $DestMainFolderPath = Join-Path -Path $DestinationPath -ChildPath $MainFolder
+                if (-not (Test-Path -Path $DestMainFolderPath)) {
+                    New-Item -ItemType Directory -Path $DestMainFolderPath | Out-Null
                 }
-                Copy-Subfolder -SourcePath $folder.FullName -DestPath $DestSubPath
-                Log-Message "Copied $($folder.Name) from $($MainFolderPath) to $($DestSubPath)"
+
+                # Create the subfolder within the newly created main folder
+                New-Item -ItemType Directory -Path $DestSubPath | Out-Null
             }
+
+            # Copy all contents of the subfolder directly into the destination subfolder
+            Copy-Subfolder -SourcePath $SubFolderPath.FullName -DestPath $DestSubPath
+            Log-Message "Copied $SubFolderPath to $DestSubPath"
         } else {
-            Log-Message "Subfolder containing ID '$SubFolderID' not found in main folder '$MainFolderID'"
+            Log-Message "Subfolder not found: $SubFolder in $MainFolderPath"
         }
     } else {
-        Log-Message "Main folder '$MainFolderID' does not exist."
+        Log-Message "Main folder path does not exist: $MainFolderPath"
     }
 }
 
 Log-Message "Script completed."
-
-
-
-
-
-
-
-
-
-
-# Function to log messages
-function Write-Log {
-    param ([string]$message)
-    $logFile = "C:\path\to\logfile.log"  # Update with the path to your log file
-    Add-Content -Path $logFile -Value "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) - $message"
-}
-
-# Ensure the destination directory exists
-if (-not (Test-Path -Path $DestinationDir)) {
-    try {
-        New-Item -ItemType Directory -Path $DestinationDir -Force | Out-Null
-        Write-Log "Created destination directory: $DestinationDir"
-    } catch {
-        Write-Log "Error creating destination directory: $_"
-        throw
-    }
-}
-
-# Move entire folder to DMS
-try {
-    Write-Log "Moving files from $SourceDir to $DestinationDir"
-    Move-Item -Path $SourceDir -Destination $DestinationDir -Recurse -Force
-    Write-Log "Moved files from $SourceDir to $DestinationDir successfully"
-} catch {
-    Write-Log "Error moving files from $SourceDir to $DestinationDir: $($_)"
-}
