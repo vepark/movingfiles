@@ -1,8 +1,9 @@
+
 # Define parameters
 param (
-    [string]$BasePath = "Y:\DMS",
+    [string]$BasePath = "Y:\Ehhh",
     [string]$DestinationPath = "C:\Users\Downloads",
-    [string]$IDList = ""  # List of mainfolder_subfolder combinations
+    [string]$IDList = "123456789_1234, 123456789_5678"  # List of mainfolder_subfolder combinations
 )
 
 # Function to log messages
@@ -27,38 +28,43 @@ if (-not (Test-Path -Path $DestinationPath)) {
     New-Item -ItemType Directory -Path $DestinationPath | Out-Null
 }
 
+# Initialize a hashtable to track created main folders in the destination
+$CreatedMainFolders = @{}
+
 # Loop through each ID in the IDList
 foreach ($ID in $IDList -split ',') {
     $ID = $ID.Trim()
     $IDs = $ID -split '_'
     $MainFolder = $IDs[0]
-    $SubFolder = $IDs[1]
+    $SubFolderPattern = $IDs[1]
 
     $MainFolderPath = Join-Path -Path $BasePath -ChildPath $MainFolder
-    $SubFolderPattern = $SubFolder
 
     if (Test-Path -Path $MainFolderPath) {
-        $SubFolderPath = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -eq $SubFolderPattern }
+        # Find subfolders that contain the 4-digit pattern in their name
+        $SubFolders = Get-ChildItem -Path $MainFolderPath -Directory | Where-Object { $_.Name -match "\b$SubFolderPattern\b" }
 
-        if ($SubFolderPath) {
-            # Construct the destination path including the main folder
-            $DestSubPath = Join-Path -Path $DestinationPath -ChildPath "$MainFolder\$SubFolderPattern"
-            if (-not (Test-Path -Path $DestSubPath)) {
-                # Create the main folder at the destination first
+        if ($SubFolders.Count -gt 0) {
+            # Ensure the destination main folder exists
+            if (-not $CreatedMainFolders.ContainsKey($MainFolder)) {
                 $DestMainFolderPath = Join-Path -Path $DestinationPath -ChildPath $MainFolder
                 if (-not (Test-Path -Path $DestMainFolderPath)) {
                     New-Item -ItemType Directory -Path $DestMainFolderPath | Out-Null
                 }
-
-                # Create the subfolder within the newly created main folder
-                New-Item -ItemType Directory -Path $DestSubPath | Out-Null
+                $CreatedMainFolders[$MainFolder] = $DestMainFolderPath
             }
 
-            # Copy all contents of the subfolder directly into the destination subfolder
-            Copy-Subfolder -SourcePath $SubFolderPath.FullName -DestPath $DestSubPath
-            Log-Message "Copied $SubFolderPath to $DestSubPath"
+            # Copy each matching subfolder to the destination main folder
+            foreach ($SubFolder in $SubFolders) {
+                $DestSubPath = Join-Path -Path $CreatedMainFolders[$MainFolder] -ChildPath $SubFolder.Name
+                if (-not (Test-Path -Path $DestSubPath)) {
+                    New-Item -ItemType Directory -Path $DestSubPath | Out-Null
+                }
+                Copy-Subfolder -SourcePath $SubFolder.FullName -DestPath $DestSubPath
+                Log-Message "Copied $SubFolder.FullName to $DestSubPath"
+            }
         } else {
-            Log-Message "Subfolder not found: $SubFolder in $MainFolderPath"
+            Log-Message "No matching subfolders found in $MainFolderPath for pattern $SubFolderPattern"
         }
     } else {
         Log-Message "Main folder path does not exist: $MainFolderPath"
@@ -66,3 +72,4 @@ foreach ($ID in $IDList -split ',') {
 }
 
 Log-Message "Script completed."
+
