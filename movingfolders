@@ -1,16 +1,17 @@
-# Define parameters
-param (
-    [string]$BasePath = "",
-    [string]$DestinationPath = "",
-    [string]$IDList = ", , "  # List of mainfolder_subfolder combinations
+# Define global parameters
+$BasePath = "Y:\Ekk"
+$DestinationPath = "C:\Users\yy8989\Downloads\"
+$IDList = @(
+    "1234566_1234"
+    # Add more entries as needed
 )
 
 # Function to log messages
 function Log-Message {
     param (
-        [string]$msg
+        [string]$Message
     )
-    Write-Host "$(Get-Date -Format "yyyy-MM-dd HH:mm:ss") - $msg"
+    Write-Host "$(Get-Date -Format "yyyy-MM-dd HH:mm:ss") - $Message"
 }
 
 # Function to copy subfolders to destination
@@ -22,42 +23,36 @@ function Copy-Subfolder {
     Copy-Item -Path $SourcePath -Destination $DestPath -Recurse -Force
 }
 
-# Ensure the destination path exists
-if (-not (Test-Path -Path $DestinationPath)) {
-    New-Item -ItemType Directory -Path $DestinationPath | Out-Null
-}
+# Define global result array
+$global:results = @()
 
 # Loop through each ID in the IDList
-foreach ($ID in $IDList -split ',') {
-    $ID = $ID.Trim()
-    $IDs = $ID -split '_'
-    $MainFolder = $IDs[0]
-    $SubFolder = $IDs[1]
+foreach ($ID in $IDList) {
+    $IDParts = $ID -split "_"
+    $MainFolderID = $IDParts[0]
+    $SubFolderID = $IDParts[1]
 
-    $MainFolderPath = Join-Path -Path $BasePath -ChildPath $MainFolder
-    $SubFolderPattern = "*$SubFolder*"
+    $MainFolderPath = Join-Path $BasePath $MainFolderID
 
-    if (Test-Path -Path $MainFolderPath) {
-        $SubFolderPath = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -like $SubFolderPattern }
-
-        if ($SubFolderPath) {
-            $DestSubPath = Join-Path -Path $DestinationPath -ChildPath "$MainFolder\$SubFolder"
-            if (-not (Test-Path -Path $DestSubPath)) {
+    if (Test-Path $MainFolderPath) {
+        $SubFolder = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -match $SubFolderID }
+        if ($SubFolder) {
+            $DestSubPath = Join-Path $DestinationPath $SubFolder.Name
+            if (-not (Test-Path $DestSubPath)) {
                 New-Item -ItemType Directory -Path $DestSubPath | Out-Null
             }
-
-            # Copy all contents of the subfolder directly into the destination folder
-            Copy-Subfolder -SourcePath $SubFolderPath.FullName -DestPath $DestSubPath
-            Log-Message "Copied $SubFolderPath to $DestSubPath"
+            Copy-Subfolder -SourcePath $SubFolder.FullName -DestPath $DestSubPath
+            Log-Message "Copied $($SubFolder.Name) from $($MainFolderPath) to $($DestSubPath)"
         } else {
-            Log-Message "Subfolder not found: $SubFolder in $MainFolderPath"
+            Log-Message "Subfolder containing ID '$SubFolderID' not found in main folder '$MainFolderID'"
         }
     } else {
-        Log-Message "Main folder path does not exist: $MainFolderPath"
+        Log-Message "Main folder '$MainFolderID' does not exist."
     }
 }
 
 Log-Message "Script completed."
+
 
 
 
