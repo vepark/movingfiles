@@ -1,6 +1,6 @@
 # Define parameters
 param (
-    [string]$BasePath = "Y:\S",
+    [string]$BasePath = "Y:\EDDD",
     [string]$DestinationPath = "C:\Users\Downloads",
     [string]$IDList = "123456789_1234, 123456789_5678"  # List of mainfolder_subfolder combinations
 )
@@ -24,21 +24,23 @@ function Copy-Subfolder {
     $itemsToCopy = @()
 
     foreach ($item in $sourceItems) {
-        $relativePath = $item.FullName.Substring($SourcePath.Length)
-        $destinationItemPath = Join-Path -Path $DestPath -ChildPath $relativePath
+        if ($item -ne $null) {
+            $relativePath = $item.FullName.Substring($SourcePath.Length)
+            $destinationItemPath = Join-Path -Path $DestPath -ChildPath $relativePath
 
-        if (-not (Test-Path -Path $destinationItemPath) -or (Get-Item $destinationItemPath).Length -eq 0) {
-            $itemsToCopy += $item.FullName
+            if (-not (Test-Path -Path $destinationItemPath) -or (Get-Item $destinationItemPath).Length -eq 0) {
+                $itemsToCopy += $item
+            }
         }
     }
 
     if ($itemsToCopy.Count -gt 0) {
         foreach ($item in $itemsToCopy) {
-            $destinationItemPath = $item.FullName.Substring($SourcePath.Length)
-            $finalDestinationPath = Join-Path -Path $DestPath -ChildPath $destinationItemPath
+            $relativePath = $item.FullName.Substring($SourcePath.Length)
+            $finalDestinationPath = Join-Path -Path $DestPath -ChildPath $relativePath
 
             if ($item.PSIsContainer) {
-                New-Item -ItemType Directory -Path $finalDestinationPath | Out-Null
+                New-Item -ItemType Directory -Path $finalDestinationPath -Force | Out-Null
             } else {
                 Copy-Item -Path $item.FullName -Destination $finalDestinationPath -Force
             }
@@ -84,9 +86,6 @@ foreach ($ID in $IDList -split ',') {
             # Copy each matching subfolder to the destination main folder
             foreach ($SubFolder in $SubFolders) {
                 $DestSubPath = Join-Path -Path $CreatedMainFolders[$MainFolder] -ChildPath $SubFolder.Name
-                if (-not (Test-Path -Path $DestSubPath)) {
-                    New-Item -ItemType Directory -Path $DestSubPath | Out-Null
-                }
                 Copy-Subfolder -SourcePath $SubFolder.FullName -DestPath $DestSubPath
                 Log-Message "Copied $SubFolder.FullName to $DestSubPath"
             }
@@ -99,10 +98,6 @@ foreach ($ID in $IDList -split ',') {
 }
 
 Log-Message "Script completed."
-
-
-
-
 
 
 
