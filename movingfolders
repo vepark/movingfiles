@@ -1,3 +1,116 @@
+# Define parameters
+param (
+    [string]$BasePath = "Y:\S",
+    [string]$DestinationPath = "C:\Users\Downloads",
+    [string]$IDList = "123456789_1234, 123456789_5678"  # List of mainfolder_subfolder combinations
+)
+
+# Function to log messages
+function Log-Message {
+    param (
+        [string]$msg
+    )
+    Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $msg"
+}
+
+# Function to copy subfolders to destination if not already present or partially present
+function Copy-Subfolder {
+    param (
+        [string]$SourcePath,
+        [string]$DestPath
+    )
+
+    $sourceItems = Get-ChildItem -Path $SourcePath -Recurse
+    $itemsToCopy = @()
+
+    foreach ($item in $sourceItems) {
+        $relativePath = $item.FullName.Substring($SourcePath.Length)
+        $destinationItemPath = Join-Path -Path $DestPath -ChildPath $relativePath
+
+        if (-not (Test-Path -Path $destinationItemPath) -or (Get-Item $destinationItemPath).Length -eq 0) {
+            $itemsToCopy += $item.FullName
+        }
+    }
+
+    if ($itemsToCopy.Count -gt 0) {
+        foreach ($item in $itemsToCopy) {
+            $destinationItemPath = $item.FullName.Substring($SourcePath.Length)
+            $finalDestinationPath = Join-Path -Path $DestPath -ChildPath $destinationItemPath
+
+            if ($item.PSIsContainer) {
+                New-Item -ItemType Directory -Path $finalDestinationPath | Out-Null
+            } else {
+                Copy-Item -Path $item.FullName -Destination $finalDestinationPath -Force
+            }
+        }
+
+        Log-Message "Copied $(($itemsToCopy | Measure-Object).Count) items from $SourcePath to $DestPath"
+    } else {
+        Log-Message "No new or missing items to copy from $SourcePath to $DestPath"
+    }
+}
+
+# Ensure the destination path exists
+if (-not (Test-Path -Path $DestinationPath)) {
+    New-Item -ItemType Directory -Path $DestinationPath | Out-Null
+}
+
+# Initialize a hashtable to track created main folders in the destination
+$CreatedMainFolders = @{}
+
+# Loop through each ID in the IDList
+foreach ($ID in $IDList -split ',') {
+    $ID = $ID.Trim()
+    $IDs = $ID -split '_'
+    $MainFolder = $IDs[0]
+    $SubFolderPattern = $IDs[1]
+
+    $MainFolderPath = Join-Path -Path $BasePath -ChildPath $MainFolder
+
+    if (Test-Path -Path $MainFolderPath) {
+        # Find subfolders that contain the 4-digit pattern in their name, including one or two levels deep
+        $SubFolders = Get-ChildItem -Path $MainFolderPath -Recurse -Directory | Where-Object { $_.Name -match "\b$SubFolderPattern\b" }
+
+        if ($SubFolders.Count -gt 0) {
+            # Ensure the destination main folder exists
+            if (-not $CreatedMainFolders.ContainsKey($MainFolder)) {
+                $DestMainFolderPath = Join-Path -Path $DestinationPath -ChildPath $MainFolder
+                if (-not (Test-Path -Path $DestMainFolderPath)) {
+                    New-Item -ItemType Directory -Path $DestMainFolderPath | Out-Null
+                }
+                $CreatedMainFolders[$MainFolder] = $DestMainFolderPath
+            }
+
+            # Copy each matching subfolder to the destination main folder
+            foreach ($SubFolder in $SubFolders) {
+                $DestSubPath = Join-Path -Path $CreatedMainFolders[$MainFolder] -ChildPath $SubFolder.Name
+                if (-not (Test-Path -Path $DestSubPath)) {
+                    New-Item -ItemType Directory -Path $DestSubPath | Out-Null
+                }
+                Copy-Subfolder -SourcePath $SubFolder.FullName -DestPath $DestSubPath
+                Log-Message "Copied $SubFolder.FullName to $DestSubPath"
+            }
+        } else {
+            Log-Message "No matching subfolders found in $MainFolderPath for pattern $SubFolderPattern"
+        }
+    } else {
+        Log-Message "Main folder path does not exist: $MainFolderPath"
+    }
+}
+
+Log-Message "Script completed."
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Define parameters
 param (
