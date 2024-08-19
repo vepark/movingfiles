@@ -1,0 +1,39 @@
+# Define source and destination directories
+$sourcePath = "C:\path\to\your\source"  # Update with your source path
+$destinationPath = "C:\path\to\your\destination"  # Update with your destination path
+
+# List of file extensions to move
+$codeFileExtensions = @("*.sas", "*.sql", "*.egp", "*.py", "*.r", "*.ipynb", "*.js", "*.ps1", "*.bat", "*.sh", "*.pl")
+
+# Function to move code files and preserve folder structure
+function Move-CodeFiles {
+    param (
+        [string]$source,
+        [string]$destination,
+        [array]$extensions
+    )
+
+    # Get all the files in the source path with the specified extensions
+    foreach ($ext in $extensions) {
+        $files = Get-ChildItem -Path $source -Recurse -Filter $ext
+
+        foreach ($file in $files) {
+            # Create the destination directory structure
+            $relativePath = $file.FullName.Substring($source.Length)
+            $destinationDir = Join-Path -Path $destination -ChildPath $relativePath
+            $destinationDir = [System.IO.Path]::GetDirectoryName($destinationDir)
+
+            if (-not (Test-Path -Path $destinationDir)) {
+                New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+            }
+
+            # Move the file
+            Move-Item -Path $file.FullName -Destination $destinationDir -Force
+        }
+    }
+}
+
+# Run the function
+Move-CodeFiles -source $sourcePath -destination $destinationPath -extensions $codeFileExtensions
+
+Write-Host "Code files have been moved successfully."
