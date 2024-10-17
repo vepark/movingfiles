@@ -1,0 +1,52 @@
+# Define paths
+$sourceDrive = "C:\SourcePath"
+$destinationDrive = "D:\DestinationPath"
+$outputExcel = "C:\Path\To\Output\Comparison.xlsx"
+
+# Load Excel COM object
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$workbook = $excel.Workbooks.Add()
+$worksheet = $workbook.Sheets.Item(1)
+
+# Add headers
+$worksheet.Cells.Item(1,1) = "Absolute Path"
+$worksheet.Cells.Item(1,2) = "File Name"
+$worksheet.Cells.Item(1,3) = "Destination Match"
+$worksheet.Cells.Item(1,4) = "Match Status"
+
+# Get all files in source drive
+$filesInSource = Get-ChildItem -Path $sourceDrive -Recurse -File
+
+$row = 2
+
+foreach ($file in $filesInSource) {
+    # Get source file full path and relative path
+    $sourceFullPath = $file.FullName
+    $relativePath = $sourceFullPath.Substring($sourceDrive.Length)
+
+    # Construct equivalent path in the destination drive
+    $destinationFilePath = Join-Path $destinationDrive $relativePath
+
+    # Add file info to Excel
+    $worksheet.Cells.Item($row, 1) = $sourceFullPath
+    $worksheet.Cells.Item($row, 2) = $file.Name
+
+    # Check if the file exists in the destination drive
+    if (Test-Path $destinationFilePath) {
+        $worksheet.Cells.Item($row, 3) = $destinationFilePath
+        $worksheet.Cells.Item($row, 4) = 1  # Match found
+    } else {
+        $worksheet.Cells.Item($row, 3) = $null
+        $worksheet.Cells.Item($row, 4) = 0  # No match
+    }
+
+    $row++
+}
+
+# Save and close Excel file
+$workbook.SaveAs($outputExcel)
+$workbook.Close()
+$excel.Quit()
+
+Write-Output "Comparison file created at: $outputExcel"
