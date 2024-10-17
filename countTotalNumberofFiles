@@ -1,0 +1,4 @@
+$folderPath = "C:\Path\To\Your\MainFolder"
+$files = Get-ChildItem -Path $folderPath -Recurse -File
+$totalFileCount = $files.Count
+Write-Output "Total number of files: $totalFileCount"
