@@ -1,4 +1,62 @@
+#NEW --
+
 # Define paths
+$sourceDrive = "C:\SourcePath"
+$destinationDrive = "D:\DestinationPath"
+$outputCSV = "C:\Path\To\Output\Comparison.csv"
+
+# Create or clear the output file
+New-Item -Path $outputCSV -ItemType File -Force
+Add-Content -Path $outputCSV -Value "Absolute Path,File Name,Destination Match,Match Status"
+
+# Get all files in the source drive
+$filesInSource = Get-ChildItem -Path $sourceDrive -Recurse -File
+
+# Initialize counters
+$totalFiles = $filesInSource.Count
+$currentFile = 1
+
+# Loop through each file in the source
+foreach ($file in $filesInSource) {
+    # Get source file full path and relative path
+    $sourceFullPath = $file.FullName
+    $relativePath = $sourceFullPath.Substring($sourceDrive.Length)
+
+    # Construct equivalent path in the destination drive
+    $destinationFilePath = Join-Path $destinationDrive $relativePath
+
+    # Check if the file exists in the destination drive
+    $matchStatus = if (Test-Path $destinationFilePath) { 1 } else { 0 }
+    $destinationMatch = if ($matchStatus -eq 1) { $destinationFilePath } else { $null }
+
+    # Write to CSV file
+    Add-Content -Path $outputCSV -Value "$sourceFullPath,$($file.Name),$destinationMatch,$matchStatus"
+
+    # Show progress every 100 files
+    if ($currentFile % 100 -eq 0) {
+        Write-Progress -Activity "Processing files" -Status "$currentFile of $totalFiles files processed" -PercentComplete (($currentFile / $totalFiles) * 100)
+    }
+
+    $currentFile++
+}
+
+Write-Host "Comparison file created at: $outputCSV"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# OLD -- Define paths
 $sourceDrive = "C:\SourcePath"
 $destinationDrive = "D:\DestinationPath"
 $outputExcel = "C:\Path\To\Output\Comparison.xlsx"
