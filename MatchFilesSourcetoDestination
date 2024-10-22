@@ -1,3 +1,103 @@
+#NEW 3---
+
+# Define paths
+$sourceDrive = "C:\SourcePath"
+$destinationDrive = "D:\DestinationPath"
+$outputCSV = "C:\Path\To\Output\Comparison.csv"
+
+# Regular expression to match 4-digit numbers
+$fourDigitRegex = '\d{4}'
+
+# Create or clear the output file
+New-Item -Path $outputCSV -ItemType File -Force
+Add-Content -Path $outputCSV -Value "Absolute Path,File Name,Destination Match,Match Status"
+
+# Get all files in source drive
+$filesInSource = Get-ChildItem -Path $sourceDrive -Recurse -File
+
+# Initialize counters
+$totalFiles = $filesInSource.Count
+$currentFile = 1
+
+# Function to find a matching folder in the destination using 4-digit number
+function Find-MatchingSubfolder {
+    param (
+        $sourceSubfolderPath,
+        $destinationMainFolder
+    )
+
+    # Extract the 4-digit number from the source subfolder path
+    $sourceSubfolder = Split-Path $sourceSubfolderPath -Leaf
+    $match = [regex]::Match($sourceSubfolder, $fourDigitRegex)
+
+    if ($match.Success) {
+        $fourDigit = $match.Value
+        # Search for a subfolder in the destination that contains the same 4-digit number
+        $matchingFolder = Get-ChildItem -Path $destinationMainFolder -Directory | Where-Object { $_.Name -match $fourDigit }
+        if ($matchingFolder) {
+            return $matchingFolder.FullName
+        }
+    }
+
+    return $null
+}
+
+# Loop through each file in the source
+foreach ($file in $filesInSource) {
+    # Get the full path and relative path from the source drive
+    $sourceFullPath = $file.FullName
+    $relativePath = $sourceFullPath.Substring($sourceDrive.Length)
+
+    # Split the relative path to get main folder and subfolder structure
+    $pathParts = $relativePath -split '\\'
+    $sourceMainFolder = $pathParts[0]
+    $sourceSubfolderPath = if ($pathParts.Length -gt 1) { $pathParts[1..($pathParts.Length - 2)] -join '\' } else { $null }
+
+    # Construct the destination path
+    $destinationMainFolder = Join-Path $destinationDrive $sourceMainFolder
+
+    # Skip to the next file if $sourceSubfolderPath is null
+    if (-not $sourceSubfolderPath) {
+        Write-Host "Skipping file: $sourceFullPath (no subfolder)"
+        continue
+    }
+
+    $destinationFilePath = Join-Path $destinationMainFolder $sourceSubfolderPath
+
+    # Check if exact path exists in destination
+    if (-not (Test-Path $destinationFilePath)) {
+        # If the exact match is not found, try matching using 4-digit numbers in subfolders
+        $destinationSubfolder = Find-MatchingSubfolder -sourceSubfolderPath $destinationMainFolder
+        if ($destinationSubfolder) {
+            $destinationFilePath = Join-Path $destinationSubfolder $file.Name
+        } else {
+            # If no matching folder is found, continue
+            $destinationFilePath = $null
+        }
+    }
+
+    # Check if the file now exists in the destination
+    $matchStatus = if ($destinationFilePath -and (Test-Path $destinationFilePath)) { 1 } else { 0 }
+    $destinationMatch = if ($matchStatus -eq 1) { $destinationFilePath } else { $null }
+
+    # Write the result to the CSV file
+    Add-Content -Path $outputCSV -Value "$sourceFullPath,$($file.Name),$destinationMatch,$matchStatus"
+
+    # Show progress every 100 files
+    if ($currentFile % 100 -eq 0) {
+        Write-Progress -Activity "Processing files" -Status "$currentFile of $totalFiles files processed" -PercentComplete (($currentFile / $totalFiles) * 100)
+    }
+
+    $currentFile++
+}
+
+Write-Host "Comparison file created at: $outputCSV"
+
+
+
+
+
+
 #NEW2 ---
 # Define paths
 $sourceDrive = "C:\SourcePath"
