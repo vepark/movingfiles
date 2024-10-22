@@ -12,14 +12,14 @@ $fourDigitRegex = '\d{4}'
 New-Item -Path $outputCSV -ItemType File -Force
 Add-Content -Path $outputCSV -Value "Absolute Path,File Name,Destination Match,Match Status"
 
-# Get all files in source drive
-$filesInSource = Get-ChildItem -Path $sourceDrive -Recurse -File
+# Get all files in the source drive (without using -File)
+$filesInSource = Get-ChildItem -Path $sourceDrive -Recurse | Where-Object { -not $_.PsIsContainer }
 
 # Initialize counters
 $totalFiles = $filesInSource.Count
 $currentFile = 1
 
-# Function to find a matching folder in the destination using 4-digit number
+# Function to find a matching folder in the destination using a 4-digit number
 function Find-MatchingSubfolder {
     param (
         $sourceSubfolderPath,
@@ -91,6 +91,7 @@ foreach ($file in $filesInSource) {
 }
 
 Write-Host "Comparison file created at: $outputCSV"
+
 
 
 
