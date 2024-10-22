@@ -1,0 +1,61 @@
+# Define paths
+$sourceDrive = "C:\SourcePath"
+$destinationDrive = "C:\DestinationPath"
+$outputCSV = "C:\Path\To\Output\Comparison.csv"
+
+# Create or clear the output file
+New-Item -Path $outputCSV -ItemType File -Force
+Add-Content -Path $outputCSV -Value "SourceMainFolder,DestinationMainFolder,SourceFileName,DestinationFileName,Match"
+
+# Get all main folders in source and destination drives
+$mainFoldersInSource = Get-ChildItem -Path $sourceDrive -Directory
+$mainFoldersInDestination = Get-ChildItem -Path $destinationDrive -Directory
+
+# Loop through each main folder in the source
+foreach ($sourceMainFolder in $mainFoldersInSource) {
+    # Define the source main folder name and path
+    $sourceMainFolderName = $sourceMainFolder.Name
+    $sourceMainFolderPath = $sourceMainFolder.FullName
+
+    # Check if the corresponding main folder exists in the destination
+    $destinationMainFolder = $mainFoldersInDestination | Where-Object { $_.Name -eq $sourceMainFolderName }
+    
+    if ($destinationMainFolder) {
+        $destinationMainFolderPath = $destinationMainFolder.FullName
+    } else {
+        # If main folder not found in destination, skip
+        Write-Host "Main folder not found in destination: $sourceMainFolderName"
+        continue
+    }
+
+    # Get all files in the source main folder (recursively)
+    $filesInSource = Get-ChildItem -Path $sourceMainFolderPath -Recurse -File
+
+    # Get all files in the destination main folder (recursively)
+    $filesInDestination = Get-ChildItem -Path $destinationMainFolderPath -Recurse -File
+
+    # Create a dictionary of filenames from the destination
+    $destinationFileNames = @{}
+    foreach ($file in $filesInDestination) {
+        $destinationFileNames[$file.Name] = $file.FullName
+    }
+
+    # Loop through each file in the source main folder
+    foreach ($sourceFile in $filesInSource) {
+        $sourceFileName = $sourceFile.Name
+
+        # Check if the file exists in the destination
+        if ($destinationFileNames.ContainsKey($sourceFileName)) {
+            $destinationFilePath = $destinationFileNames[$sourceFileName]
+            $matchStatus = 1
+        } else {
+            $destinationFilePath = ""
+            $matchStatus = 0
+        }
+
+        # Write the result to the CSV file
+        Add-Content -Path $outputCSV -Value "$sourceMainFolderName,$($destinationMainFolder.Name),$sourceFileName,$destinationFilePath,$matchStatus"
+    }
+}
+
+Write-Host "Comparison completed. CSV file created at: $outputCSV"
