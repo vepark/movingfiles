@@ -1,0 +1,28 @@
+# Define the folder path
+$folderPath = "C:\Path\To\SharedDriveFolder"
+$outputCSV = "C:\Path\To\Output\EmptyFilesList.csv"
+
+# Create or clear the output CSV file
+New-Item -Path $outputCSV -ItemType File -Force
+Add-Content -Path $outputCSV -Value "FilePath,FileSizeKB"
+
+# Loop through each file in the folder and its subfolders
+Get-ChildItem -Path $folderPath -Recurse -File | ForEach-Object {
+    $filePath = $_.FullName
+    $fileSizeKB = $_.Length / 1KB
+
+    try {
+        # Check if the file size is 0 KB or if it has no content
+        $fileContent = Get-Content -Path $filePath -ErrorAction Stop
+
+        if ($fileSizeKB -eq 0 -or [string]::IsNullOrEmpty($fileContent -join "")) {
+            # Write the result to the CSV file
+            Add-Content -Path $outputCSV -Value "$filePath,$fileSizeKB"
+        }
+    } catch {
+        # If there's an error reading the file (e.g., access issues), skip it
+        Write-Host "Skipping file due to access error: $filePath"
+    }
+}
+
+Write-Host "Empty files list created at: $outputCSV"
