@@ -1,4 +1,13 @@
 
+Get-ChildItem -Path $folderPath -Recurse -File | Where-Object {
+    $_.Length -eq 0 -or ([string]::IsNullOrWhiteSpace((Get-Content -Path $_.FullName -Raw -ErrorAction SilentlyContinue)))
+} | Select-Object FullName, Length | Export-Csv -Path "C:\Path\To\Output\EmptyFilesList.csv" -NoTypeInformation
+
+
+
+
+
+
 for /r %i in (*) do @if %~zi==0 echo %i
 
 
