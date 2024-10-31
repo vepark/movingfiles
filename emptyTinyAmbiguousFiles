@@ -1,0 +1,33 @@
+# Define the path to scan and the output file
+$folderPath = "C:\Path\To\Your\Folder"
+$outputCSV = "C:\Path\To\Output\FileCheckResults.csv"
+$sizeThreshold = 100
+
+# Define ambiguous file extensions (you can add more as needed)
+$ambiguousExtensions = @(".tmp", ".bak", ".old", ".log", ".dat")
+
+# Create or clear the output CSV file
+New-Item -Path $outputCSV -ItemType File -Force
+Add-Content -Path $outputCSV -Value "FilePath,FileSizeBytes,FileType"
+
+# Get all files in the specified folder and subfolders
+Get-ChildItem -Path $folderPath -Recurse -File | ForEach-Object {
+    $filePath = $_.FullName
+    $fileSize = $_.Length
+    $fileExtension = $_.Extension.ToLower()
+
+    # Check for empty files (0 bytes)
+    if ($fileSize -eq 0) {
+        Add-Content -Path $outputCSV -Value "$filePath,$fileSize,Empty"
+    }
+    # Check for tiny files below the threshold size
+    elseif ($fileSize -lt $sizeThreshold) {
+        Add-Content -Path $outputCSV -Value "$filePath,$fileSize,Tiny"
+    }
+    # Check for files with ambiguous extensions
+    elseif ($ambiguousExtensions -contains $fileExtension) {
+        Add-Content -Path $outputCSV -Value "$filePath,$fileSize,Ambiguous Extension"
+    }
+}
+
+Write-Host "File check completed. Results saved to: $outputCSV"
