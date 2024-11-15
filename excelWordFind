@@ -1,0 +1,1 @@
+=TEXTJOIN(", ", TRUE, IF(ISNUMBER(SEARCH({"apple","orange","banana"}, D2&G2&H2&I2)), {"apple","orange","banana"}, ""))
