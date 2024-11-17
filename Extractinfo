@@ -1,0 +1,40 @@
+import PyPDF2
+import os
+import pandas as pd
+
+def extract_text_from_pdf(pdf_path, start_phrase, end_phrase):
+    with open(pdf_path, 'rb') as pdf_file:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        for page in range(len(pdf_reader.pages)):
+            page_text = pdf_reader.pages[page].extract_text()
+            start_index = page_text.find(start_phrase)
+            end_index = page_text.find(end_phrase, start_index)
+            if start_index != -1 and end_index != -1:
+                return page_text[start_index + len(start_phrase):end_index].strip()
+        return None
+
+def save_to_excel(file_name, data):
+    df = pd.DataFrame(data, columns=['File Name', 'Extracted Content 1', 'Extracted Content 2'])
+    df.to_excel(file_name, index=False)
+
+def main():
+    directory = r"Z:\CReport\WIgs"
+    start_phrase_1 = "Total Amount"
+    end_phrase_1 = "Projected Date"
+    start_phrase_2 = "Another Start Phrase"  # Replace with your second start phrase
+    end_phrase_2 = "Another End Phrase"      # Replace with your second end phrase
+    excel_file_name = r"C:\Users\i56\Desktop\P24.xlsx"
+
+    data = []
+    for filename in os.listdir(directory):
+        if filename.endswith('.pdf'):
+            pdf_path = os.path.join(directory, filename)
+            extracted_text_1 = extract_text_from_pdf(pdf_path, start_phrase_1, end_phrase_1)
+            extracted_text_2 = extract_text_from_pdf(pdf_path, start_phrase_2, end_phrase_2)
+            if extracted_text_1 or extracted_text_2:
+                data.append([filename, extracted_text_1, extracted_text_2])
+
+    save_to_excel(excel_file_name, data)
+
+if __name__ == '__main__':
+    main()
