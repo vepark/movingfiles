@@ -1,0 +1,14 @@
+from pdfdiff import diff
+
+# Open the two PDF files
+with open("file1.pdf", "rb") as file_a:
+    content_a = file_a.read()
+
+with open("file2.pdf", "rb") as file_b:
+    content_b = file_b.read()
+
+# Compare the contents
+result = diff(content_a, content_b)
+
+# Print the result
+print(result)
