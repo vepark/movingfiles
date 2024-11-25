@@ -1,64 +1,45 @@
+import PyPDF2
+import difflib
 
-from pdfdiff import diff
+# Function to extract text from a specific page of a PDF file
+def extract_text_from_pdf(file_path):
+    with open(file_path, "rb") as file:
+        reader = PyPDF2.PdfReader(file)
+        text_by_page = []
+        for page_num, page in enumerate(reader.pages):
+            text = page.extract_text()
+            text_by_page.append((page_num + 1, text))  # Store page number with text
+        return text_by_page
 
-# Define the paths to the PDF files
+# Paths to the PDF files
 file_a_path = "file1.pdf"
 file_b_path = "file2.pdf"
 
 try:
-    # Open and read both files as binary
-    with open(file_a_path, "rb") as file_a:
-        content_a = file_a.read()
-    with open(file_b_path, "rb") as file_b:
-        content_b = file_b.read()
+    # Extract text by page from both PDFs
+    pdf_a_pages = extract_text_from_pdf(file_a_path)
+    pdf_b_pages = extract_text_from_pdf(file_b_path)
 
-    # Perform the diff comparison
-    result = diff(content_a, content_b)
+    # Compare each page and show differences
+    print("\nDifferences between PDFs (by page):")
+    print("-" * 50)
+    for (page_a_num, text_a), (page_b_num, text_b) in zip(pdf_a_pages, pdf_b_pages):
+        # Use difflib to compare text on this page
+        diff = list(difflib.unified_diff(
+            text_a.splitlines(),
+            text_b.splitlines(),
+            lineterm=""
+        ))
 
-    # Print the result
-    print(result)
-
-except FileNotFoundError as e:
-    print(f"Error: {e}")
-
-
-
-
-
-
-import PyPDF2
-import difflib
-
-# Function to extract text from a PDF file
-def extract_text_from_pdf(file_path):
-    with open(file_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text()
-        return text
-
-# Paths to the PDF files
-file_a_path = "123.pdf"
-file_b_path = "456.pdf"
-
-try:
-    # Extract text from both PDFs
-    text_a = extract_text_from_pdf(file_a_path)
-    text_b = extract_text_from_pdf(file_b_path)
-
-    # Use difflib to compare the text
-    diff = difflib.unified_diff(
-        text_a.splitlines(),
-        text_b.splitlines(),
-        fromfile="File A",
-        tofile="File B",
-        lineterm=""
-    )
-
-    # Print the differences line by line
-    for line in diff:
-        print(line)
+        # If there are differences, display the page number and differences
+        if diff:
+            print(f"\nPage {page_a_num}:\n")
+            for line in diff:
+                if line.startswith("-"):
+                    print(f"Removed: {line[1:]}")
+                elif line.startswith("+"):
+                    print(f"Added: {line[1:]}")
+    print("-" * 50)
 
 except FileNotFoundError as e:
     print(f"Error: {e}")
