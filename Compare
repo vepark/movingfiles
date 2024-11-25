@@ -22,7 +22,7 @@ sheet = workbook.active
 sheet.title = "PDF Differences"
 
 # Add headers to the Excel sheet
-sheet.append(["Page Number", "Line Number", "File 1 Content", "File 2 Content"])
+sheet.append(["Page Number", "File 1 Content", "File 2 Content"])
 
 try:
     # Extract text by page from both PDFs
@@ -32,22 +32,21 @@ try:
     # Compare each page and record differences
     for (page_1_num, text_1), (page_2_num, text_2) in zip(pdf_1_pages, pdf_2_pages):
         # Use difflib to compare text on this page
-        diff = list(difflib.ndiff(
+        diff = list(difflib.unified_diff(
             text_1.splitlines(),
-            text_2.splitlines()
+            text_2.splitlines(),
+            lineterm=""
         ))
 
-        # Line-by-line comparison
-        line_num = 1
-        for line in diff:
-            if line.startswith("-"):  # Removed from File 1
-                sheet.append([page_1_num, line_num, line[2:], ""])
-            elif line.startswith("+"):  # Added in File 2
-                sheet.append([page_1_num, line_num, "", line[2:]])
-            line_num += 1
+        # If differences exist, write them to Excel
+        if diff:
+            # Combine differences into readable strings
+            file1_diff = "\n".join(line[2:] for line in diff if line.startswith("-"))
+            file2_diff = "\n".join(line[2:] for line in diff if line.startswith("+"))
+            sheet.append([page_1_num, file1_diff, file2_diff])
 
     # Save the Excel file
-    output_file = "PDF_Differences_Output.xlsx"
+    output_file = "PDF_Pagewise_Differences.xlsx"
     workbook.save(output_file)
     print(f"Differences have been saved to the file: {output_file}")
 
