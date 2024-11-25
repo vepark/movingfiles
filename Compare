@@ -20,3 +20,47 @@ try:
 
 except FileNotFoundError as e:
     print(f"Error: {e}")
+
+
+
+
+
+
+import PyPDF2
+import difflib
+
+# Function to extract text from a PDF file
+def extract_text_from_pdf(file_path):
+    with open(file_path, "rb") as file:
+        reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
+        return text
+
+# Paths to the PDF files
+file_a_path = "123.pdf"
+file_b_path = "456.pdf"
+
+try:
+    # Extract text from both PDFs
+    text_a = extract_text_from_pdf(file_a_path)
+    text_b = extract_text_from_pdf(file_b_path)
+
+    # Use difflib to compare the text
+    diff = difflib.unified_diff(
+        text_a.splitlines(),
+        text_b.splitlines(),
+        fromfile="File A",
+        tofile="File B",
+        lineterm=""
+    )
+
+    # Print the differences line by line
+    for line in diff:
+        print(line)
+
+except FileNotFoundError as e:
+    print(f"Error: {e}")
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
