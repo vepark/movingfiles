@@ -1,9 +1,8 @@
 import PyPDF2
 import difflib
 import openpyxl
-from openpyxl.styles import Font, PatternFill
 
-# Function to extract text from a PDF file by page
+# Function to extract text from each page of a PDF file
 def extract_text_from_pdf(file_path):
     with open(file_path, "rb") as file:
         reader = PyPDF2.PdfReader(file)
@@ -14,49 +13,43 @@ def extract_text_from_pdf(file_path):
         return text_by_page
 
 # Paths to the PDF files
-file_a_path = "C8.pdf"
-file_b_path = "C5.pdf"
+file_1_path = "file1.pdf"
+file_2_path = "file2.pdf"
 
-# Excel Workbook Setup
+# Create an Excel workbook and sheet
 workbook = openpyxl.Workbook()
 sheet = workbook.active
 sheet.title = "PDF Differences"
 
-# Set up headers
-headers = ["Page Number", "Line Numbers", "File 1 Content", "File 2 Content"]
-sheet.append(headers)
-header_font = Font(bold=True, color="FFFFFF")
-header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-for col in range(1, len(headers) + 1):
-    sheet.cell(row=1, column=col).font = header_font
-    sheet.cell(row=1, column=col).fill = header_fill
+# Add headers to the Excel sheet
+sheet.append(["Page Number", "Line Number", "File 1 Content", "File 2 Content"])
 
 try:
     # Extract text by page from both PDFs
-    pdf_a_pages = extract_text_from_pdf(file_a_path)
-    pdf_b_pages = extract_text_from_pdf(file_b_path)
+    pdf_1_pages = extract_text_from_pdf(file_1_path)
+    pdf_2_pages = extract_text_from_pdf(file_2_path)
 
-    # Compare each page and log differences
-    for (page_a_num, text_a), (page_b_num, text_b) in zip(pdf_a_pages, pdf_b_pages):
+    # Compare each page and record differences
+    for (page_1_num, text_1), (page_2_num, text_2) in zip(pdf_1_pages, pdf_2_pages):
         # Use difflib to compare text on this page
-        diff = list(difflib.ndiff(text_a.splitlines(), text_b.splitlines()))
-        line_number = 1
+        diff = list(difflib.ndiff(
+            text_1.splitlines(),
+            text_2.splitlines()
+        ))
+
+        # Line-by-line comparison
+        line_num = 1
         for line in diff:
-            if line.startswith("- "):  # Removed from File 1
-                removed_line = line[2:]
-                added_line = next(
-                    (l[2:] for l in diff if l.startswith("+ ")), ""
-                )  # Match with added line if exists
-                sheet.append([page_a_num, line_number, removed_line, added_line])
-            elif line.startswith("+ "):  # Added in File 2
-                added_line = line[2:]
-                sheet.append([page_a_num, line_number, "", added_line])
-            line_number += 1
+            if line.startswith("-"):  # Removed from File 1
+                sheet.append([page_1_num, line_num, line[2:], ""])
+            elif line.startswith("+"):  # Added in File 2
+                sheet.append([page_1_num, line_num, "", line[2:]])
+            line_num += 1
 
     # Save the Excel file
-    excel_file = "PDF_Differences.xlsx"
-    workbook.save(excel_file)
-    print(f"Differences saved to {excel_file}")
+    output_file = "PDF_Differences_Output.xlsx"
+    workbook.save(output_file)
+    print(f"Differences have been saved to the file: {output_file}")
 
 except FileNotFoundError as e:
     print(f"Error: {e}")
