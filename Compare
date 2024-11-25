@@ -1,14 +1,22 @@
+
 from pdfdiff import diff
 
-# Open the two PDF files
-with open("file1.pdf", "rb") as file_a:
-    content_a = file_a.read()
+# Define the paths to the PDF files
+file_a_path = "file1.pdf"
+file_b_path = "file2.pdf"
 
-with open("file2.pdf", "rb") as file_b:
-    content_b = file_b.read()
+try:
+    # Open and read both files as binary
+    with open(file_a_path, "rb") as file_a:
+        content_a = file_a.read()
+    with open(file_b_path, "rb") as file_b:
+        content_b = file_b.read()
 
-# Compare the contents
-result = diff(content_a, content_b)
+    # Perform the diff comparison
+    result = diff(content_a, content_b)
 
-# Print the result
-print(result)
+    # Print the result
+    print(result)
+
+except FileNotFoundError as e:
+    print(f"Error: {e}")
