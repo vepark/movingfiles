@@ -1,27 +1,29 @@
-Sub ExtractDatabasesAndCount()
-    Dim ws As Worksheet
+Sub ExtractDatabaseNamesAndCounts()
+    Dim wsSource As Worksheet
+    Dim wsResult As Worksheet
     Dim dataRange As Range
     Dim cell As Range
     Dim regex As Object
     Dim matches As Object
     Dim databaseCounts As Object
-    Dim match As Object
     Dim database As String
     Dim outputRow As Long
 
-    ' Set the worksheet and data range
-    Set ws = ThisWorkbook.Sheets(1) ' Adjust to your sheet name if necessary
-    Set dataRange = ws.Range("A1:A" & ws.Cells(ws.Rows.Count, "A").End(xlUp).Row)
+    ' Set the source worksheet
+    Set wsSource = ThisWorkbook.Sheets(1) ' Adjust if your source sheet is not the first sheet
+
+    ' Set the data range in column A
+    Set dataRange = wsSource.Range("A1:A" & wsSource.Cells(wsSource.Rows.Count, "A").End(xlUp).Row)
 
     ' Create a regex object
     Set regex = CreateObject("VBScript.RegExp")
-    regex.Pattern = "\b[A-Z0-9_]+(?:\.[A-Z0-9_]+)?\b"
+    regex.Pattern = "\b[A-Z0-9_]+(?:\.[A-Z0-9_]+)?\b" ' Matches uppercase names, optionally with a table name
     regex.Global = True
 
     ' Dictionary to store database counts
     Set databaseCounts = CreateObject("Scripting.Dictionary")
 
-    ' Loop through each cell in the data range
+    ' Loop through each cell in column A and extract database names
     For Each cell In dataRange
         If Not IsEmpty(cell.Value) Then
             Set matches = regex.Execute(cell.Value)
@@ -36,32 +38,32 @@ Sub ExtractDatabasesAndCount()
         End If
     Next cell
 
-    ' Output results to a new worksheet
-    Dim outputWs As Worksheet
+    ' Create a new worksheet for the results
     On Error Resume Next
-    Set outputWs = ThisWorkbook.Sheets("DatabaseCounts")
-    If outputWs Is Nothing Then
-        Set outputWs = ThisWorkbook.Sheets.Add
-        outputWs.Name = "DatabaseCounts"
+    Set wsResult = ThisWorkbook.Sheets("DatabaseCounts")
+    If wsResult Is Nothing Then
+        Set wsResult = ThisWorkbook.Sheets.Add
+        wsResult.Name = "DatabaseCounts"
     End If
     On Error GoTo 0
 
-    ' Write header row
-    outputWs.Cells(1, 1).Value = "Database"
-    outputWs.Cells(1, 2).Value = "Count"
+    ' Write headers to the new sheet
+    wsResult.Cells.Clear
+    wsResult.Cells(1, 1).Value = "DatabaseName"
+    wsResult.Cells(1, 2).Value = "Counts"
 
-    ' Write database counts
+    ' Write the database names and counts to the result sheet
     outputRow = 2
     For Each database In databaseCounts.Keys
-        outputWs.Cells(outputRow, 1).Value = database
-        outputWs.Cells(outputRow, 2).Value = databaseCounts(database)
+        wsResult.Cells(outputRow, 1).Value = database
+        wsResult.Cells(outputRow, 2).Value = databaseCounts(database)
         outputRow = outputRow + 1
     Next database
 
-    ' Sort by count in descending order
+    ' Sort the results by count in descending order
     Dim sortRange As Range
-    Set sortRange = outputWs.Range("A1:B" & outputRow - 1)
-    sortRange.Sort Key1:=outputWs.Range("B1"), Order1:=xlDescending, Header:=xlYes
+    Set sortRange = wsResult.Range("A1:B" & outputRow - 1)
+    sortRange.Sort Key1:=wsResult.Range("B1"), Order1:=xlDescending, Header:=xlYes
 
-    MsgBox "Extraction and sorting complete!", vbInformation
+    MsgBox "Database extraction and sorting completed!", vbInformation
 End Sub
