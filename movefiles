@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Define source and destination directories
+SOURCE_DIR="/path/to/source"
+DEST_DIR="/path/to/destination"
+
+# Loop through all datasets in the destination directory
+for file in "$DEST_DIR"/*.sas7bdat; do
+  # Get the dataset name without path
+  base_name=$(basename "$file")
+  
+  # Check if the corresponding file exists in the source directory
+  if [ -f "$SOURCE_DIR/$base_name" ]; then
+    # Replace the content of the dataset
+    cp -f "$SOURCE_DIR/$base_name" "$DEST_DIR/$base_name.temp"
+    
+    # Preserve the timestamp of the destination file
+    touch -r "$DEST_DIR/$base_name" "$DEST_DIR/$base_name.temp"
+    
+    # Rename the temporary file to overwrite the original
+    mv "$DEST_DIR/$base_name.temp" "$DEST_DIR/$base_name"
+    
+    echo "Replaced content of $base_name and preserved timestamp."
+  else
+    echo "Source dataset $base_name not found."
+  fi
+done
