@@ -1,0 +1,32 @@
+import re
+import csv
+
+# Input SAS program file
+sas_program_path = "path_to_your_sas_program.sas"
+output_csv_path = "database_tablename_combos.csv"
+
+# Regex pattern to match database.tablename
+pattern = r'\b(\w+)\.(\w+)\b'
+
+# Read the SAS program
+with open(sas_program_path, 'r') as file:
+    sas_code = file.read()
+
+# Find all matches
+matches = re.findall(pattern, sas_code)
+
+# Deduplicate the results
+unique_matches = sorted(set(matches))
+
+# Print the results
+print("Database.TableName Combinations:")
+for db, table in unique_matches:
+    print(f"{db}.{table}")
+
+# Write to CSV
+with open(output_csv_path, 'w', newline='') as csvfile:
+    csv_writer = csv.writer(csvfile)
+    csv_writer.writerow(["Database", "TableName"])  # Header
+    csv_writer.writerows(unique_matches)
+
+print(f"\nDatabase and TableName combinations saved to {output_csv_path}")
