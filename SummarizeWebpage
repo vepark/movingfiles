@@ -1,0 +1,28 @@
+import requests
+from bs4 import BeautifulSoup
+from transformers import pipeline
+
+def summarize_webpage(url, max_length=150, min_length=50):
+    try:
+        # Fetch the webpage
+        response = requests.get(url)
+        response.raise_for_status()  # Check for request errors
+        
+        # Parse the HTML content
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract main content (adjust based on website structure)
+        content = ' '.join([p.text for p in soup.find_all('p')])
+        
+        # Summarize the text using HuggingFace transformers
+        summarizer = pipeline("summarization")
+        summary = summarizer(content, max_length=max_length, min_length=min_length, do_sample=False)
+        
+        return summary[0]['summary_text']
+    except Exception as e:
+        return f"An error occurred: {e}"
+
+# Example usage
+url = "https://example.com"  # Replace with the webpage URL
+summary = summarize_webpage(url)
+print("Summary:", summary)
