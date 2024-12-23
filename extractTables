@@ -1,0 +1,40 @@
+import xml.etree.ElementTree as ET
+import csv
+
+def extract_tables_from_egp(egp_file, output_csv):
+    try:
+        # Parse the SAS .egp file (it's an XML file internally)
+        tree = ET.parse(egp_file)
+        root = tree.getroot()
+
+        # List to hold all database.table combinations
+        table_combos = []
+
+        # Traverse through the XML structure to find database.table references
+        for element in root.iter():
+            if element.tag == "Code" and element.text:
+                code_text = element.text
+                # Find all database.table combinations using regex
+                import re
+                matches = re.findall(r"\b([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)\b", code_text)
+                table_combos.extend(matches)
+
+        # Remove duplicates
+        table_combos = list(set(table_combos))
+
+        # Write results to a CSV file
+        with open(output_csv, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Database.Table"])
+            for table in table_combos:
+                writer.writerow([table])
+
+        print(f"Successfully extracted {len(table_combos)} database.table combinations to {output_csv}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Usage
+# Replace 'input.egp' with the path to your SAS .egp file
+# Replace 'output.csv' with the desired output CSV file path
+extract_tables_from_egp('input.egp', 'output.csv')
