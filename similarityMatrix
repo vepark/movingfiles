@@ -20,3 +20,72 @@ similarity_scores = cosine_similarity(tfidf_matrix[:len(table1)], tfidf_matrix[l
 similarity_df = pd.DataFrame(similarity_scores, index=table1['text_field1'], columns=table2['text_field2'])
 
 print(similarity_df)
+
+
+
+
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
+
+# Example paragraphs
+texts = [
+    "This is a sample paragraph to compare.",
+    "This is a sample paragraph to compare.",  # Identical to the first
+    "Another text with completely different content.",
+    "This is somewhat similar but not entirely the same."
+]
+
+# TF-IDF Vectorization
+vectorizer = TfidfVectorizer()
+tfidf_matrix = vectorizer.fit_transform(texts)
+
+# Cosine Similarity
+similarity_scores = cosine_similarity(tfidf_matrix)
+
+# Display similarity matrix
+similarity_df = pd.DataFrame(similarity_scores, 
+                             index=["Text 1", "Text 2", "Text 3", "Text 4"], 
+                             columns=["Text 1", "Text 2", "Text 3", "Text 4"])
+
+print("Similarity Matrix (TF-IDF with Cosine Similarity):")
+print(similarity_df)
+
+
+
+
+
+
+
+
+
+import tensorflow_hub as hub
+import numpy as np
+import pandas as pd
+
+# Load the USE model
+embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder/4")
+
+# Example paragraphs
+texts = [
+    "This is a sample paragraph to compare.",
+    "This is a sample paragraph to compare.",  # Identical to the first
+    "Another text with completely different content.",
+    "This is somewhat similar but not entirely the same."
+]
+
+# Get embeddings
+embeddings = embed(texts)
+
+# Compute cosine similarity
+similarity_scores = np.inner(embeddings, embeddings)
+
+# Display similarity matrix
+similarity_df = pd.DataFrame(similarity_scores, 
+                             index=["Text 1", "Text 2", "Text 3", "Text 4"], 
+                             columns=["Text 1", "Text 2", "Text 3", "Text 4"])
+
+print("Similarity Matrix (USE):")
+print(similarity_df)
