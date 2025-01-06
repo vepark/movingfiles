@@ -1,0 +1,22 @@
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
+
+# Example tables
+table1 = pd.DataFrame({'text_field1': ['apple pie recipe', 'chocolate cake', 'vanilla ice cream']})
+table2 = pd.DataFrame({'text_field2': ['apple tart recipe', 'dark chocolate cake', 'vanilla cream dessert']})
+
+# Combine all text fields for TF-IDF vectorization
+combined_texts = pd.concat([table1['text_field1'], table2['text_field2']])
+
+# TF-IDF Vectorization
+vectorizer = TfidfVectorizer()
+tfidf_matrix = vectorizer.fit_transform(combined_texts)
+
+# Compute Cosine Similarity
+similarity_scores = cosine_similarity(tfidf_matrix[:len(table1)], tfidf_matrix[len(table1):])
+
+# Create a DataFrame to store similarity scores
+similarity_df = pd.DataFrame(similarity_scores, index=table1['text_field1'], columns=table2['text_field2'])
+
+print(similarity_df)
