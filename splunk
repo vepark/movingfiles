@@ -1,49 +1,60 @@
-import re
+import splunklib.client as client
+import splunklib.results as results
 import pandas as pd
 
-# Sample log data (replace with your actual log data or file reading logic)
-log_data = [
-    """your log entries here..."""
-]
+# Splunk connection details
+SPLUNK_HOST = "your_splunk_host"  # e.g., "splunk.mycompany.com"
+SPLUNK_PORT = 8089               # Default management port for Splunk
+USERNAME = "your_username"
+PASSWORD = "your_password"
 
-# Define a list to store extracted data
-extracted_data = []
+# Splunk search query
+SPLUNK_QUERY = """
+search index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="*submitClaim*"
+| rex field=_raw max_match=1 "\\r\"ECN\":\"(?<ECN>.*?)\""
+| rex field=_raw max_match=1 "customerClaimNbr\":\"(?<claimNumber>[0-9]+)\""
+| rex field=_raw max_match=1 "claimType\":\"(?<claimType>.*?)\""
+| rex field=_raw max_match=1 "SORName\":\"(?<SORName>.*?)\""
+| rex field=_raw max_match=1 "crDecision\":\"(?<crDecision>.*?)\""
+| rex field=_raw max_match=0 "referenceNumber\":\"(?<refNbr>.*?)\""
+| rex field=_raw max_match=0 "messageData\":\"(?<MsgData>.*?)\""
+| rex field=_raw max_match=1 "crAmount\":\"(?<crAmount>.*?)\""
+| search crDecision="Provisional Credit" AND SORName="LU"
+| rename DT AS claimDateTime
+| table ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
+"""
 
-# Define the regex pattern to extract all required fields
-pattern = re.compile(
-    r'ECN":"(?P<ECN>.*?)".*?'
-    r'customerClaimNbr":"(?P<claimNumber>[0-9]+)".*?'
-    r'claimType":"(?P<claimType>.*?)".*?'
-    r'SORName":"(?P<SORName>.*?)".*?'
-    r'crDecision":"(?P<crDecision>.*?)".*?'
-    r'referenceNumber":"(?P<refNbr>.*?)".*?'
-    r'crAmount":"(?P<crAmount>\d+\.?\d*)".*?'
-    r'messageData":"(?P<MsgData>.*?)"'
-)
+# Connect to Splunk
+try:
+    service = client.connect(
+        host=SPLUNK_HOST,
+        port=SPLUNK_PORT,
+        username=USERNAME,
+        password=PASSWORD
+    )
+    print("Connected to Splunk successfully.")
+except Exception as e:
+    print(f"Failed to connect to Splunk: {e}")
+    exit()
 
-# Filter condition
-def is_valid_entry(entry):
-    return entry["crDecision"] == "Provisional Credit" and entry["SORName"] == "LU"
+# Run the search query
+try:
+    job = service.jobs.create(SPLUNK_QUERY, exec_mode="blocking")
+    print("Query executed successfully.")
+except Exception as e:
+    print(f"Failed to execute the query: {e}")
+    exit()
 
-# Process each log entry
-for log in log_data:
-    match = pattern.search(log)
-    if match:
-        data = match.groupdict()
-        if is_valid_entry(data):
-            extracted_data.append(data)
+# Retrieve results
+results_reader = results.ResultsReader(job.results(output_mode="json"))
 
-# Convert extracted data to a Pandas DataFrame
-df = pd.DataFrame(extracted_data)
+# Parse results into a list of dictionaries
+data = [result for result in results_reader if isinstance(result, dict)]
 
-# Rename columns
-df.rename(columns={"DT": "claimDateTime"}, inplace=True)
+# Convert to a DataFrame
+df = pd.DataFrame(data)
 
-# Select and reorder columns
-columns = ["ECN", "claimType", "SORName", "claimNumber", "crDecision", "refNbr", "crAmount", "claimDateTime", "MsgData"]
-df = df[columns]
-
-# Save to CSV or display
-output_file = "extracted_data.csv"
+# Save to CSV
+output_file = "splunk_results.csv"
 df.to_csv(output_file, index=False)
-print(f"Data saved to {output_file}")
+print(f"Results saved to {output_file}")
