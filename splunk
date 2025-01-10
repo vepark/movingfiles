@@ -1,0 +1,49 @@
+import re
+import pandas as pd
+
+# Sample log data (replace with your actual log data or file reading logic)
+log_data = [
+    """your log entries here..."""
+]
+
+# Define a list to store extracted data
+extracted_data = []
+
+# Define the regex pattern to extract all required fields
+pattern = re.compile(
+    r'ECN":"(?P<ECN>.*?)".*?'
+    r'customerClaimNbr":"(?P<claimNumber>[0-9]+)".*?'
+    r'claimType":"(?P<claimType>.*?)".*?'
+    r'SORName":"(?P<SORName>.*?)".*?'
+    r'crDecision":"(?P<crDecision>.*?)".*?'
+    r'referenceNumber":"(?P<refNbr>.*?)".*?'
+    r'crAmount":"(?P<crAmount>\d+\.?\d*)".*?'
+    r'messageData":"(?P<MsgData>.*?)"'
+)
+
+# Filter condition
+def is_valid_entry(entry):
+    return entry["crDecision"] == "Provisional Credit" and entry["SORName"] == "LU"
+
+# Process each log entry
+for log in log_data:
+    match = pattern.search(log)
+    if match:
+        data = match.groupdict()
+        if is_valid_entry(data):
+            extracted_data.append(data)
+
+# Convert extracted data to a Pandas DataFrame
+df = pd.DataFrame(extracted_data)
+
+# Rename columns
+df.rename(columns={"DT": "claimDateTime"}, inplace=True)
+
+# Select and reorder columns
+columns = ["ECN", "claimType", "SORName", "claimNumber", "crDecision", "refNbr", "crAmount", "claimDateTime", "MsgData"]
+df = df[columns]
+
+# Save to CSV or display
+output_file = "extracted_data.csv"
+df.to_csv(output_file, index=False)
+print(f"Data saved to {output_file}")
