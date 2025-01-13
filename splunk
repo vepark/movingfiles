@@ -9,20 +9,21 @@ USERNAME = "your_username"
 PASSWORD = "your_password"
 
 # Splunk search query
-SPLUNK_QUERY = """
+SPLUNK_QUERY = r"""
 search index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="*submitClaim*"
-| rex field=_raw max_match=1 "\\r\"ECN\":\"(?<ECN>.*?)\""
-| rex field=_raw max_match=1 "customerClaimNbr\":\"(?<claimNumber>[0-9]+)\""
-| rex field=_raw max_match=1 "claimType\":\"(?<claimType>.*?)\""
-| rex field=_raw max_match=1 "SORName\":\"(?<SORName>.*?)\""
-| rex field=_raw max_match=1 "crDecision\":\"(?<crDecision>.*?)\""
-| rex field=_raw max_match=0 "referenceNumber\":\"(?<refNbr>.*?)\""
-| rex field=_raw max_match=0 "messageData\":\"(?<MsgData>.*?)\""
-| rex field=_raw max_match=1 "crAmount\":\"(?<crAmount>.*?)\""
+| rex field=_raw max_match=1 "\\\\r\\\"ECN\\\":\\\"(?<ECN>.*?)\\\""
+| rex field=_raw max_match=1 "customerClaimNbr\\\":\\\"(?<claimNumber>[0-9]+)\\\""
+| rex field=_raw max_match=1 "claimType\\\":\\\"(?<claimType>.*?)\\\""
+| rex field=_raw max_match=1 "SORName\\\":\\\"(?<SORName>.*?)\\\""
+| rex field=_raw max_match=1 "crDecision\\\":\\\"(?<crDecision>.*?)\\\""
+| rex field=_raw max_match=0 "referenceNumber\\\":\\\"(?<refNbr>.*?)\\\""
+| rex field=_raw max_match=0 "messageData\\\":\\\"(?<MsgData>.*?)\\\""
+| rex field=_raw max_match=1 "crAmount\\\":\\\"(?<crAmount>.*?)\\\""
 | search crDecision="Provisional Credit" AND SORName="LU"
 | rename DT AS claimDateTime
 | table ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
 """
+
 
 # Connect to Splunk
 try:
