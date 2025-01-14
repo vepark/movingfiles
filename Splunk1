@@ -1,77 +1,79 @@
 import splunklib.client as client
 import splunklib.results as results
 import pandas as pd
-import json
+import time
+import logging
+
+# Setup logging
+logging.basicConfig(
+    level=logging.DEBUG,  # Set logging level (DEBUG, INFO, WARNING, ERROR)
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("splunk_query.log"),  # Log to a file
+        logging.StreamHandler()  # Log to the console
+    ]
+)
 
 # Splunk connection details
-SPLUNK_HOST = "your_splunk_host"  # e.g., "splunk.mycompany.com"
-SPLUNK_PORT = 8089  # Default management port for Splunk
+SPLUNK_HOST = "your_splunk_host"
+SPLUNK_PORT = 8089
 USERNAME = "your_username"
 PASSWORD = "your_password"
 
-
-index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="*submitClaim*" OpName=logResponse earliest=-7d latest=now
-| rex field=_raw max_match=1 "(?ms)\\r\"ECN\":\"(?<ECN>[^\"]+)\".*?customerClaimNbr\":\"(?<claimNumber>[0-9]+)\".*?claimType\":\"(?<claimType>[^\"]+)\".*?SORName\":\"(?<SORName>[^\"]+)\".*?messageCode\":\"(?<crDecision>[^\"]+)\".*?referenceNumber\":\"(?<refNbr>[^\"]+)\".*?messageData\":\"(?<MsgData>[^\"]+)\".*?crAmount\":\"(?<crAmount>[^\"]+)"
-| search crDecision="Provisional Credit" AND SORName="LU"
-| fields ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
-| table ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
-
-
-# Splunk search query
+# Splunk query
 SPLUNK_QUERY = """
-search index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="submitClaim"
-| rex field=_raw max_match=1 "\\r\"ECN\":\"(?<ECN>.*?)\""
+search index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="*submitClaim*" OpName=logResponse earliest=-288d@d latest=-182d@d
+| rex field=_raw max_match=1 "wf-customerid: (?<ECN>.*?)\\r"
 | rex field=_raw max_match=1 "customerClaimNbr\":\"(?<claimNumber>[0-9]+)\""
 | rex field=_raw max_match=1 "claimType\":\"(?<claimType>.*?)\""
 | rex field=_raw max_match=1 "SORName\":\"(?<SORName>.*?)\""
-| rex field=_raw max_match=1 "crDecision\":\"(?<crDecision>.*?)\""
-| rex field=_raw max_match=1 "referenceNumber\":\"(?<refNbr>.*?)\""
-| rex field=_raw max_match=1 "crAmount\":\"(?<crAmount>.*?)\""
-| rex field=_raw max_match=1 "messageData\":\"(?<MsData>.*?)\""
+| rex field=_raw max_match=1 "messageCode\":\"(?<crDecision>.*?)\""
+| rex field=_raw max_match=0 "referenceNumber\":\"(?<refNbr>.*?)\""
+| rex field=_raw max_match=0 "messageData\":\"(?<MsgData>.*?)\""
 | search crDecision="Provisional Credit" AND SORName="LU"
-| rename DT as claimDateTime
-| table ECN claimType SORName crDecision refNbr crAmount claimDateTime MsData
+| rename DT AS claimDateTime
+| table ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
 """
 
 # Connect to Splunk
 try:
+    logging.info("Connecting to Splunk...")
     service = client.connect(
         host=SPLUNK_HOST,
         port=SPLUNK_PORT,
         username=USERNAME,
-        password=PASSWORD,
+        password=PASSWORD
     )
-    print("Connected to Splunk successfully.")
+    logging.info("Connected to Splunk successfully.")
 except Exception as e:
-    print(f"Failed to connect to Splunk: {e}")
+    logging.error(f"Failed to connect to Splunk: {e}")
     exit()
 
-# Run the search query
-try:
-    job = service.jobs.create(SPLUNK_QUERY, exec_mode="blocking")
-    print("Query executed successfully.")
-except Exception as e:
-    print(f"Failed to execute the query: {e}")
-    exit()
+# Run the query with retry logic
+MAX_RETRIES = 3
+retry_count = 0
+while retry_count < MAX_RETRIES:
+    try:
+        logging.info("Executing query...")
+        job = service.jobs.create(SPLUNK_QUERY, exec_mode="blocking", adhoc_search_level="verbose")
+        
+        while not job.is_done():
+            logging.debug("Waiting for the query to complete...")
+            time.sleep(2)
 
-# Use JSONResultsReader instead of ResultsReader
-try:
-    results_reader = results.JSONResultsReader(job.results(output_mode="json"))
-    
-    # Parse JSON results
-    json_data = [result for result in results_reader if isinstance(result, dict)]
-
-    # Save raw JSON data
-    json_output_file = "splunk_results.json"
-    with open(json_output_file, "w") as json_file:
-        json.dump(json_data, json_file, indent=4)
-    print(f"JSON results saved to {json_output_file}")
-
-    # Optional: Convert JSON to DataFrame and save as CSV
-    df = pd.DataFrame(json_data)
-    output_file = "splunk_results.csv"
-    df.to_csv(output_file, index=False)
-    print(f"Results saved to {output_file}")
-
-except Exception as e:
-    print(f"Error processing results: {e}")
+        logging.info("Query executed successfully. Fetching results...")
+        results_reader = results.JSONResultsReader(job.results(output_mode="json"))
+        data = [result for result in results_reader if isinstance(result, dict)]
+        
+        # Save results to CSV
+        df = pd.DataFrame(data)
+        output_file = "splunk_results.csv"
+        df.to_csv(output_file, index=False)
+        logging.info(f"Results saved to {output_file}")
+        break
+    except Exception as e:
+        logging.error(f"Error occurred: {e}")
+        retry_count += 1
+        if retry_count == MAX_RETRIES:
+            logging.critical("Max retries reached. Exiting.")
+            exit()
