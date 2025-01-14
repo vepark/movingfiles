@@ -9,6 +9,14 @@ SPLUNK_PORT = 8089  # Default management port for Splunk
 USERNAME = "your_username"
 PASSWORD = "your_password"
 
+
+index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="*submitClaim*" OpName=logResponse earliest=-7d latest=now
+| rex field=_raw max_match=1 "(?ms)\\r\"ECN\":\"(?<ECN>[^\"]+)\".*?customerClaimNbr\":\"(?<claimNumber>[0-9]+)\".*?claimType\":\"(?<claimType>[^\"]+)\".*?SORName\":\"(?<SORName>[^\"]+)\".*?messageCode\":\"(?<crDecision>[^\"]+)\".*?referenceNumber\":\"(?<refNbr>[^\"]+)\".*?messageData\":\"(?<MsgData>[^\"]+)\".*?crAmount\":\"(?<crAmount>[^\"]+)"
+| search crDecision="Provisional Credit" AND SORName="LU"
+| fields ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
+| table ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
+
+
 # Splunk search query
 SPLUNK_QUERY = """
 search index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="submitClaim"
