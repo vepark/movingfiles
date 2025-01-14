@@ -59,3 +59,49 @@ df = pd.DataFrame(data)
 output_file = "splunk_results.csv"
 df.to_csv(output_file, index=False)
 print(f"Results saved to {output_file}")
+
+
+
+
+import splunklib.client as client
+import splunklib.results as results
+
+# Splunk Connection Details
+HOST = "your_splunk_host"
+PORT = 8089
+USERNAME = "your_username"
+PASSWORD = "your_password"
+SPLUNK_QUERY = """
+search index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt" RefMsgNm="*submitClaim*" earliest="2024-04-01T00:00:00" latest="2024-04-02T00:00:00"
+| rex field=_raw max_match=1 "\\r\"ECN\":\"(?<ECN>.*?)\""
+| rex field=_raw max_match=1 "customerClaimNbr\":\"(?<claimNumber>[0-9]+)\""
+| rex field=_raw max_match=1 "claimType\":\"(?<claimType>.*?)\""
+| rex field=_raw max_match=1 "SORName\":\"(?<SORName>.*?)\""
+| rex field=_raw max_match=1 "crDecision\":\"(?<crDecision>.*?)\""
+| rex field=_raw max_match=0 "referenceNumber\":\"(?<refNbr>.*?)\""
+| rex field=_raw max_match=0 "messageData\":\"(?<MsgData>.*?)\""
+| rex field=_raw max_match=1 "crAmount\":\"(?<crAmount>.*?)\""
+| search crDecision="Provisional Credit" AND SORName="LU"
+| rename DT AS claimDateTime
+| table ECN claimType SORName claimNumber crDecision refNbr crAmount claimDateTime MsgData
+"""
+
+# Connect to Splunk
+service = client.connect(
+    host=HOST,
+    port=PORT,
+    username=USERNAME,
+    password=PASSWORD
+)
+
+# Run the search query
+job = service.jobs.create(SPLUNK_QUERY)
+
+# Wait for the job to complete
+while not job.is_done():
+    pass
+
+# Use JSONResultsReader
+for result in results.JSONResultsReader(job.results(output_mode="json")):
+    if isinstance(result, dict):  # Ensure it's a valid result
+        print(result)
