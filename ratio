@@ -1,0 +1,33 @@
+Positive Test - where sopid = 'BALEDIT2'; Negative Test - where sopid ≠ 'BALEDIT2':
+
+Rationale: QA Reviewer has ensured the cancellation request population includes only those with sopid = 'BALEDIT2' and excludes others with sopid ≠ 'BALEDIT2'.
+Positive Test - where FDRParameters like '%BALEDIT2 DELETE BT%' or '%BT%REQUEST%'; Negative Test - where FDRParameters is null:
+
+Rationale: QA Reviewer has filtered the cancellation request population based on FDRParameters containing specific keywords related to BALEDIT2 DELETE BT or BT REQUEST. Null FDRParameters values are excluded.
+Positive Test - where sopid = 'BALEDIT2'; Negative Test - where sopid ≠ 'BALEDIT2':
+
+Rationale: QA Reviewer has validated that all cancellation requests are accurately grouped by sopid values, ensuring inclusion of only sopid = 'BALEDIT2'.
+Positive Test - if account_id > 0; Negative Test - if account_id = 0:
+
+Rationale: QA Reviewer has included requests with valid account_id values (greater than 0) and excluded those with invalid or missing account_id values (equal to 0).
+Positive Test - where flag = 'combined' or 'single'; Negative Test - where flag is null:
+
+Rationale: QA Reviewer has ensured the population includes valid flag values ('combined' or 'single') and excludes null or invalid flags.
+Positive Test - if CDTL_FLAP_ID > 0; Negative Test - if CDTL_FLAP_ID = 0:
+
+Rationale: QA Reviewer has ensured that valid CDTL_FLAP_ID values (greater than 0) are included, while invalid values (equal to 0) are excluded.
+Positive Test - where CDTL_MRCH_DESC not like '%CHECK%' and CDTL_MRCH_DESC not like '%SUPER%'; Negative Test - where CDTL_MRCH_DESC like '%CHECK%' or '%SUPER%':
+
+Rationale: QA Reviewer has excluded entries containing specific merchant descriptions ('%CHECK%' or '%SUPER%') to maintain a relevant population.
+Positive Test - where datediff_req_post > 30; Negative Test - where datediff_req_post ≤ 30:
+
+Rationale: QA Reviewer has filtered the population to include only requests posted more than 30 days ago, excluding those within the 30-day range.
+Positive Test - where CKEY_STMT_TYPE not in ('5', '05'); Negative Test - where CKEY_STMT_TYPE in ('5', '05'):
+
+Rationale: QA Reviewer has ensured exclusion of specific statement types ('5', '05') to maintain the relevance of the population.
+Positive Test - if BT_FEE ≠ null; Negative Test - if BT_FEE = null:
+
+Rationale: QA Reviewer has ensured the population includes entries with non-null BT_FEE values, while null values are excluded.
+Positive Test - where Fee_Reversal_Flag = 'Y' and BT Amount > Fee_Y; Negative Test - delete:
+
+Rationale: QA Reviewer has validated entries with Fee_Reversal_Flag = 'Y' and BT Amount > Fee_Y, while excluding or deleting irrelevant entries.
