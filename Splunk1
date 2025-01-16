@@ -1,3 +1,7 @@
+
+
+
+
 import splunklib.client as client
 import splunklib.results as results
 import pandas as pd
@@ -77,3 +81,13 @@ while retry_count < MAX_RETRIES:
         if retry_count == MAX_RETRIES:
             logging.critical("Max retries reached. Exiting.")
             exit()
+
+
+
+
+
+index=wf_pvsi_other wf_id=EB5CL wf_env=PROD sourcetype="wf:ebscl:main.txt"
+| stats count, mean(crAmount) AS AvgCrAmount, stdev(crAmount) AS StdDevCrAmount, min(crAmount) AS MinCrAmount, max(crAmount) AS MaxCrAmount BY claimType
+| eventstats avg(crAmount) AS OverallMean, stdev(crAmount) AS OverallStdDev
+| eval isOutlier=if(crAmount < (OverallMean-2*OverallStdDev) OR crAmount > (OverallMean+2*OverallStdDev), "Yes", "No")
+| stats count BY claimType, isOutlier
