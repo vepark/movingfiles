@@ -13,28 +13,36 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
         data_fields = defaultdict(set)  # Store fields for each database.table
 
         # Regex patterns
+        table_regex = re.compile(
+            r'\b(?:FROM|JOIN|INTO|TABLE)\s+([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)', 
+            re.IGNORECASE
+        )  # Matches `database.table` after specific SQL keywords
+
         alias_regex = re.compile(
             r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s+as\s+([a-zA-Z0-9_]+)', 
             re.IGNORECASE
-        )  # Matches `database.tablename AS alias`
-        
+        )  # Matches `database.table AS alias`
+
+        alias_map = {}  # Map of alias to database.table
+
         table_field_regex = re.compile(
             r'\b([a-zA-Z0-9_]+)\.(\w+)\b', 
             re.IGNORECASE
-        )  # Matches `alias.field` or `database.table.field`
-
-        alias_map = {}  # Map of alias to database.table
+        )  # Matches `alias.variable`
 
         for file in sas_files:
             with z.open(file) as f:
                 try:
                     content = f.read().decode('utf-8', errors='ignore')  # Read file content
                     
+                    # Find and store database.table names (Data Sources tab logic remains unchanged)
+                    tables = table_regex.findall(content)
+                    data_sources.update(tables)
+                    
                     # Find and store aliases
                     for match in alias_regex.findall(content):
                         table, alias = match
-                        alias_map[alias] = table
-                        data_sources.add(table)
+                        alias_map[alias] = table  # Map alias to its corresponding database.table
 
                     # Find and store fields associated with tables or aliases
                     for match in table_field_regex.findall(content):
