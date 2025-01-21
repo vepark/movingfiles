@@ -3,7 +3,7 @@ import re
 import csv
 from collections import defaultdict
 
-def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
+def extract_primary_data_sources_and_fields(egp_file, output_csv):
     # Extract the EGP file (essentially a ZIP file)
     with zipfile.ZipFile(egp_file, 'r') as z:
         # Look for .sas files and metadata within the project
@@ -20,27 +20,40 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
         table_alias_regex = re.compile(
             r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s+(?:as\s+)?([a-zA-Z0-9_]+)', 
             re.IGNORECASE
-        )  # Matches `database.table alias` or `database.table AS alias`
+        )  # Matches `database.tablename alias` or `database.tablename AS alias`
         field_regex = re.compile(
             r'\b([a-zA-Z0-9_]+)\.(\w+)\b',  # Matches `alias.variable` or `database.table.variable`
             re.IGNORECASE
         )
+        connect_regex = re.compile(
+            r'proc\s+sql.*?connect\s+to\s+(\w+)',  # Matches `proc sql connect to` with engine
+            re.IGNORECASE | re.DOTALL
+        )
 
         alias_map = {}  # Map of alias -> database.table
+        valid_engines = {"teradata", "odbc", "oracle", "db2"}  # Target engines
 
         for file in sas_files:
             with z.open(file) as f:
                 try:
                     content = f.read().decode('utf-8', errors='ignore')  # Read file content
 
+                    # Check if the file contains a valid `PROC SQL CONNECT` engine
+                    if not connect_regex.search(content):
+                        continue
+
                     # Extract all tables and aliases
                     for table, alias in table_alias_regex.findall(content):
-                        alias_map[alias] = table  # Map alias to table
-                        data_fields[table]  # Ensure table exists in the map
+                        # Filter by database name length (more than 8 characters)
+                        if len(table.split('.')[0]) > 8:
+                            alias_map[alias] = table  # Map alias to table
+                            data_fields[table]  # Ensure table exists in the map
 
                     # Capture all standalone database.table references
                     for table in table_regex.findall(content):
-                        data_fields[table]  # Ensure table exists in the map
+                        # Filter by database name length (more than 8 characters)
+                        if len(table.split('.')[0]) > 8:
+                            data_fields[table]  # Ensure table exists in the map
 
                     # Extract variables and map them to tables
                     for alias, field in field_regex.findall(content):
@@ -63,13 +76,13 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
             else:  # Write the table even if no variables were found
                 writer.writerow([table, ""])
 
-    print(f"Data source fields saved to {output_csv}")
+    print(f"Primary data source fields saved to {output_csv}")
 
 # Usage example
 egp_file_path = "/path/to/your/project.egp"
-output_csv_path = "/path/to/output_data_source_fields.csv"
+output_csv_path = "/path/to/output_primary_data_sources.csv"
 
-extract_data_sources_and_fields_to_csv(
+extract_primary_data_sources_and_fields(
     egp_file_path, 
     output_csv_path
 )
