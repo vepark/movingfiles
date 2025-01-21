@@ -1,0 +1,75 @@
+import zipfile
+import re
+from openpyxl import Workbook
+from collections import defaultdict
+
+def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
+    # Extract the EGP file (essentially a ZIP file)
+    with zipfile.ZipFile(egp_file, 'r') as z:
+        # Look for .sas files and metadata within the project
+        sas_files = [f for f in z.namelist() if f.endswith('.sas') or f.endswith('.xml')]
+
+        data_sources = set()  # Use a set to deduplicate database.table names
+        data_fields = defaultdict(set)  # Store fields for each database.table
+
+        # Regex patterns
+        table_alias_regex = re.compile(
+            r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s+(?:as\s+)?([a-zA-Z0-9_]+)', 
+            re.IGNORECASE
+        )  # Matches `database.tablename alias` or `database.tablename AS alias`
+
+        alias_field_regex = re.compile(
+            r'\b([a-zA-Z0-9_]+)\.(\w+)\b', 
+            re.IGNORECASE
+        )  # Matches `alias.variable`
+
+        alias_map = defaultdict(list)  # Map of aliases to their corresponding database.table
+
+        for file in sas_files:
+            with z.open(file) as f:
+                try:
+                    content = f.read().decode('utf-8', errors='ignore')  # Read file content
+
+                    # Find and store database.tablename and aliases
+                    for table, alias in table_alias_regex.findall(content):
+                        data_sources.add(table)
+                        alias_map[alias].append(table)
+
+                    # Find and store fields for each alias
+                    for alias, field in alias_field_regex.findall(content):
+                        if alias in alias_map:  # If the alias matches, add fields to its table
+                            for table in alias_map[alias]:
+                                data_fields[table].add(field)
+                except Exception as e:
+                    print(f"Error reading {file}: {e}")
+
+    # Create an Excel workbook with two sheets
+    workbook = Workbook()
+
+    # Sheet 1: Data Sources
+    sheet1 = workbook.active
+    sheet1.title = "Data Sources"
+    sheet1.append(["Database.Table"])  # Header
+    for source in sorted(data_sources):  # Sort for consistency
+        sheet1.append([source])
+
+    # Sheet 2: Data Source Fields
+    sheet2 = workbook.create_sheet(title="Data Source Fields")
+    sheet2.append(["Database.Table", "Variable"])  # Header
+    for table, fields in data_fields.items():
+        for field in sorted(fields):  # Sort fields for consistency
+            sheet2.append([table, field])
+
+    # Save the Excel file
+    workbook.save(output_excel)
+
+    print(f"Data sources saved to {output_excel}")
+
+# Usage example
+egp_file_path = "/path/to/your/project.egp"
+output_excel_path = "/path/to/output_data_sources.xlsx"
+
+extract_data_sources_and_fields_to_excel(
+    egp_file_path, 
+    output_excel_path
+)
