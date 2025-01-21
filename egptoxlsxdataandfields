@@ -1,5 +1,6 @@
 import zipfile
 import re
+from collections import defaultdict
 from openpyxl import Workbook
 
 def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
@@ -13,28 +14,36 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
 
         # Regex patterns
         table_regex = re.compile(
-            r'\b(?:FROM|JOIN|INTO|TABLE)\s+([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)', 
+            r'\b(?:FROM|JOIN|INTO|TABLE)\s+([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s*(?:AS\s+)?(\w+)?', 
             re.IGNORECASE
-        )  # Matches database.table after specific SQL keywords
+        )  # Matches database.table and optional alias
 
         field_regex = re.compile(
-            r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\.(\w+)\b', 
+            r'\b(?:SELECT|GROUP BY|ON)\s+([\w\.,\s]+)', 
             re.IGNORECASE
-        )  # Matches database.table.field patterns
+        )  # Matches field lists in SELECT, GROUP BY, or ON clauses
 
         for file in sas_files:
             with z.open(file) as f:
                 try:
                     content = f.read().decode('utf-8', errors='ignore')  # Read file content
                     
-                    # Find and store database.table names
+                    # Find database.table and their aliases
                     tables = table_regex.findall(content)
-                    data_sources.update(tables)
-                    
-                    # Find and store fields linked to database.table
-                    fields = field_regex.findall(content)
-                    for table, field in fields:
-                        data_fields[table].add(field)
+                    alias_map = {alias: table for table, alias in tables if alias}
+                    data_sources.update([table for table, alias in tables])
+
+                    # Extract fields associated with tables or aliases
+                    sql_blocks = field_regex.findall(content)
+                    for block in sql_blocks:
+                        fields = [field.strip() for field in block.split(',') if '.' in field]
+                        for field in fields:
+                            if '.' in field:  # Match database.table.field or alias.field
+                                table_alias, column = field.split('.', 1)
+                                if table_alias in alias_map:  # Resolve alias to database.table
+                                    data_fields[alias_map[table_alias]].add(column)
+                                elif table_alias in data_sources:  # Direct database.table.field
+                                    data_fields[table_alias].add(column)
                 except Exception as e:
                     print(f"Error reading {file}: {e}")
 
