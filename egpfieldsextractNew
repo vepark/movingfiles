@@ -1,88 +1,76 @@
 import zipfile
 import re
-import csv
+from openpyxl import Workbook
 from collections import defaultdict
 
-def extract_primary_data_sources_and_fields(egp_file, output_csv):
+def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
     # Extract the EGP file (essentially a ZIP file)
     with zipfile.ZipFile(egp_file, 'r') as z:
         # Look for .sas files and metadata within the project
         sas_files = [f for f in z.namelist() if f.endswith('.sas') or f.endswith('.xml')]
 
         # Data structures
+        data_sources = set()  # Unique database.table names
         data_fields = defaultdict(set)  # Map of database.table -> variables
 
         # Regex patterns
-        table_regex = re.compile(
-            r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\b',  # Matches `database.table`
-            re.IGNORECASE
-        )
         table_alias_regex = re.compile(
             r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s+(?:as\s+)?([a-zA-Z0-9_]+)', 
             re.IGNORECASE
         )  # Matches `database.tablename alias` or `database.tablename AS alias`
-        field_regex = re.compile(
-            r'\b([a-zA-Z0-9_]+)\.(\w+)\b',  # Matches `alias.variable` or `database.table.variable`
+
+        alias_field_regex = re.compile(
+            r'\b([a-zA-Z0-9_]+)\.(\w+)\b', 
             re.IGNORECASE
-        )
-        connect_regex = re.compile(
-            r'proc\s+sql.*?connect\s+to\s+(\w+)',  # Matches `proc sql connect to` with engine
-            re.IGNORECASE | re.DOTALL
-        )
+        )  # Matches `alias.variable`
 
         alias_map = {}  # Map of alias -> database.table
-        valid_engines = {"teradata", "odbc", "oracle", "db2"}  # Target engines
 
         for file in sas_files:
             with z.open(file) as f:
                 try:
                     content = f.read().decode('utf-8', errors='ignore')  # Read file content
 
-                    # Check if the file contains a valid `PROC SQL CONNECT` engine
-                    if not connect_regex.search(content):
-                        continue
-
-                    # Extract all tables and aliases
+                    # Find and store database.tablename and aliases
                     for table, alias in table_alias_regex.findall(content):
-                        # Filter by database name length (more than 8 characters)
-                        if len(table.split('.')[0]) > 8:
-                            alias_map[alias] = table  # Map alias to table
-                            data_fields[table]  # Ensure table exists in the map
+                        data_sources.add(table)  # Add database.table to the set
+                        alias_map[alias] = table  # Map alias to the table
 
-                    # Capture all standalone database.table references
-                    for table in table_regex.findall(content):
-                        # Filter by database name length (more than 8 characters)
-                        if len(table.split('.')[0]) > 8:
-                            data_fields[table]  # Ensure table exists in the map
-
-                    # Extract variables and map them to tables
-                    for alias, field in field_regex.findall(content):
+                    # Find and store fields associated with aliases
+                    for alias, field in alias_field_regex.findall(content):
                         if alias in alias_map:  # If alias maps to a table
                             table = alias_map[alias]
-                            data_fields[table].add(field)
-                        elif alias in data_fields:  # If alias is directly a table
-                            data_fields[alias].add(field)
+                            data_fields[table].add(field)  # Map fields to the table
                 except Exception as e:
                     print(f"Error reading {file}: {e}")
 
-    # Write Data Source Fields to CSV
-    with open(output_csv, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Database.Table", "Variable"])  # Header
-        for table, fields in data_fields.items():
-            if fields:  # If variables exist for the table
-                for field in sorted(fields):
-                    writer.writerow([table, field])
-            else:  # Write the table even if no variables were found
-                writer.writerow([table, ""])
+    # Create an Excel workbook with two sheets
+    workbook = Workbook()
 
-    print(f"Primary data source fields saved to {output_csv}")
+    # Sheet 1: Data Sources
+    sheet1 = workbook.active
+    sheet1.title = "Data Sources"
+    sheet1.append(["Database.Table"])  # Header
+    for source in sorted(data_sources):  # Add only unique database.table names
+        sheet1.append([source])
+
+    # Sheet 2: Data Source Fields
+    sheet2 = workbook.create_sheet(title="Data Source Fields")
+    sheet2.append(["Database.Table", "Variable"])  # Header
+    for table, fields in data_fields.items():
+        for field in sorted(fields):  # Add table-variable mappings
+            sheet2.append([table, field])
+
+    # Save the Excel file
+    workbook.save(output_excel)
+
+    print(f"Data sources and fields saved to {output_excel}")
 
 # Usage example
 egp_file_path = "/path/to/your/project.egp"
-output_csv_path = "/path/to/output_primary_data_sources.csv"
+output_excel_path = "/path/to/output_data_sources.xlsx"
 
-extract_primary_data_sources_and_fields(
+extract_data_sources_and_fields_to_excel(
     egp_file_path, 
-    output_csv_path
+    output_excel_path
 )
