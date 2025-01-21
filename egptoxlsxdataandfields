@@ -1,7 +1,7 @@
 import zipfile
 import re
-from collections import defaultdict
 from openpyxl import Workbook
+from collections import defaultdict
 
 def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
     # Extract the EGP file (essentially a ZIP file)
@@ -13,37 +13,37 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
         data_fields = defaultdict(set)  # Store fields for each database.table
 
         # Regex patterns
-        table_regex = re.compile(
-            r'\b(?:FROM|JOIN|INTO|TABLE)\s+([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s*(?:AS\s+)?(\w+)?', 
+        alias_regex = re.compile(
+            r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s+as\s+([a-zA-Z0-9_]+)', 
             re.IGNORECASE
-        )  # Matches database.table and optional alias
+        )  # Matches `database.tablename AS alias`
+        
+        table_field_regex = re.compile(
+            r'\b([a-zA-Z0-9_]+)\.(\w+)\b', 
+            re.IGNORECASE
+        )  # Matches `alias.field` or `database.table.field`
 
-        field_regex = re.compile(
-            r'\b(?:SELECT|GROUP BY|ON)\s+([\w\.,\s]+)', 
-            re.IGNORECASE
-        )  # Matches field lists in SELECT, GROUP BY, or ON clauses
+        alias_map = {}  # Map of alias to database.table
 
         for file in sas_files:
             with z.open(file) as f:
                 try:
                     content = f.read().decode('utf-8', errors='ignore')  # Read file content
                     
-                    # Find database.table and their aliases
-                    tables = table_regex.findall(content)
-                    alias_map = {alias: table for table, alias in tables if alias}
-                    data_sources.update([table for table, alias in tables])
+                    # Find and store aliases
+                    for match in alias_regex.findall(content):
+                        table, alias = match
+                        alias_map[alias] = table
+                        data_sources.add(table)
 
-                    # Extract fields associated with tables or aliases
-                    sql_blocks = field_regex.findall(content)
-                    for block in sql_blocks:
-                        fields = [field.strip() for field in block.split(',') if '.' in field]
-                        for field in fields:
-                            if '.' in field:  # Match database.table.field or alias.field
-                                table_alias, column = field.split('.', 1)
-                                if table_alias in alias_map:  # Resolve alias to database.table
-                                    data_fields[alias_map[table_alias]].add(column)
-                                elif table_alias in data_sources:  # Direct database.table.field
-                                    data_fields[table_alias].add(column)
+                    # Find and store fields associated with tables or aliases
+                    for match in table_field_regex.findall(content):
+                        prefix, field = match
+                        if prefix in alias_map:  # If prefix is an alias
+                            table = alias_map[prefix]
+                            data_fields[table].add(field)
+                        elif '.' in prefix:  # If prefix is already a table
+                            data_fields[prefix].add(field)
                 except Exception as e:
                     print(f"Error reading {file}: {e}")
 
@@ -67,7 +67,7 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
     # Save the Excel file
     workbook.save(output_excel)
 
-    print(f"Data sources and fields extracted and saved to {output_excel}")
+    print(f"Data sources saved to {output_excel}")
 
 # Usage example
 egp_file_path = "/path/to/your/project.egp"
