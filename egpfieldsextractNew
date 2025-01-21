@@ -3,14 +3,13 @@ import re
 import csv
 from collections import defaultdict
 
-def extract_data_sources_and_fields_to_csv(egp_file, output_data_sources_csv, output_fields_csv):
+def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
     # Extract the EGP file (essentially a ZIP file)
     with zipfile.ZipFile(egp_file, 'r') as z:
         # Look for .sas files and metadata within the project
         sas_files = [f for f in z.namelist() if f.endswith('.sas') or f.endswith('.xml')]
 
         # Data structures
-        data_sources = set()  # Unique database.table names
         data_fields = defaultdict(set)  # Map of database.table -> variables
 
         # Regex patterns
@@ -33,7 +32,6 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_data_sources_csv, ou
 
                     # Find and store database.tablename and aliases
                     for table, alias in table_alias_regex.findall(content):
-                        data_sources.add(table)  # Add database.table to the set
                         alias_map[alias] = table  # Map alias to the table
 
                     # Find and store fields associated with aliases
@@ -44,31 +42,21 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_data_sources_csv, ou
                 except Exception as e:
                     print(f"Error reading {file}: {e}")
 
-    # Write Data Sources to CSV
-    with open(output_data_sources_csv, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Database.Table"])  # Header
-        for source in sorted(data_sources):  # Add only unique database.table names
-            writer.writerow([source])
-
     # Write Data Source Fields to CSV
-    with open(output_fields_csv, 'w', newline='') as csvfile:
+    with open(output_csv, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(["Database.Table", "Variable"])  # Header
         for table, fields in data_fields.items():
             for field in sorted(fields):  # Add table-variable mappings
                 writer.writerow([table, field])
 
-    print(f"Data sources saved to {output_data_sources_csv}")
-    print(f"Data source fields saved to {output_fields_csv}")
+    print(f"Data source fields saved to {output_csv}")
 
 # Usage example
 egp_file_path = "/path/to/your/project.egp"
-output_data_sources_csv_path = "/path/to/output_data_sources.csv"
-output_fields_csv_path = "/path/to/output_data_source_fields.csv"
+output_csv_path = "/path/to/output_data_source_fields.csv"
 
 extract_data_sources_and_fields_to_csv(
     egp_file_path, 
-    output_data_sources_csv_path, 
-    output_fields_csv_path
+    output_csv_path
 )
