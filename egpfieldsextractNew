@@ -13,15 +13,18 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
         data_fields = defaultdict(set)  # Map of database.table -> variables
 
         # Regex patterns
+        table_regex = re.compile(
+            r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\b',  # Matches `database.table`
+            re.IGNORECASE
+        )
         table_alias_regex = re.compile(
             r'\b([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)\s+(?:as\s+)?([a-zA-Z0-9_]+)', 
             re.IGNORECASE
-        )  # Matches `database.tablename alias` or `database.tablename AS alias`
-
-        alias_field_regex = re.compile(
-            r'\b([a-zA-Z0-9_]+)\.(\w+)\b', 
+        )  # Matches `database.table alias` or `database.table AS alias`
+        field_regex = re.compile(
+            r'\b([a-zA-Z0-9_]+)\.(\w+)\b',  # Matches `alias.variable` or `database.table.variable`
             re.IGNORECASE
-        )  # Matches `alias.variable`
+        )
 
         alias_map = {}  # Map of alias -> database.table
 
@@ -30,15 +33,22 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
                 try:
                     content = f.read().decode('utf-8', errors='ignore')  # Read file content
 
-                    # Find and store database.tablename and aliases
+                    # Extract all tables and aliases
                     for table, alias in table_alias_regex.findall(content):
-                        alias_map[alias] = table  # Map alias to the table
+                        alias_map[alias] = table  # Map alias to table
+                        data_fields[table]  # Ensure table exists in the map
 
-                    # Find and store fields associated with aliases
-                    for alias, field in alias_field_regex.findall(content):
+                    # Capture all standalone database.table references
+                    for table in table_regex.findall(content):
+                        data_fields[table]  # Ensure table exists in the map
+
+                    # Extract variables and map them to tables
+                    for alias, field in field_regex.findall(content):
                         if alias in alias_map:  # If alias maps to a table
                             table = alias_map[alias]
-                            data_fields[table].add(field)  # Map fields to the table
+                            data_fields[table].add(field)
+                        elif alias in data_fields:  # If alias is directly a table
+                            data_fields[alias].add(field)
                 except Exception as e:
                     print(f"Error reading {file}: {e}")
 
@@ -47,8 +57,11 @@ def extract_data_sources_and_fields_to_csv(egp_file, output_csv):
         writer = csv.writer(csvfile)
         writer.writerow(["Database.Table", "Variable"])  # Header
         for table, fields in data_fields.items():
-            for field in sorted(fields):  # Add table-variable mappings
-                writer.writerow([table, field])
+            if fields:  # If variables exist for the table
+                for field in sorted(fields):
+                    writer.writerow([table, field])
+            else:  # Write the table even if no variables were found
+                writer.writerow([table, ""])
 
     print(f"Data source fields saved to {output_csv}")
 
