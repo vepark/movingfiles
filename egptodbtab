@@ -1,4 +1,66 @@
 import zipfile
+import re
+import csv
+
+def extract_data_sources(egp_file, output_csv):
+    # Extract the EGP file (essentially a ZIP file)
+    with zipfile.ZipFile(egp_file, 'r') as z:
+        # Look for .sas files and metadata within the project
+        sas_files = [f for f in z.namelist() if f.endswith('.sas') or f.endswith('.xml')]
+
+        data_sources = set()  # Use a set to deduplicate database.table names
+
+        # Regex to match patterns after SQL keywords
+        sql_regex = re.compile(
+            r'\b(?:FROM|JOIN|INTO|TABLE)\s+([a-zA-Z0-9_]{9,}\.[a-zA-Z0-9_]+)', 
+            re.IGNORECASE
+        )
+
+        for file in sas_files:
+            with z.open(file) as f:
+                try:
+                    content = f.read().decode('utf-8', errors='ignore')  # Read file content
+                    # Find matches with SQL-specific patterns
+                    matches = sql_regex.findall(content)
+                    data_sources.update(matches)  # Add matches to the set
+                except Exception as e:
+                    print(f"Error reading {file}: {e}")
+
+    # Write the deduplicated data sources to a CSV file
+    with open(output_csv, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Database.Table"])  # Header
+        for source in sorted(data_sources):  # Sort for consistency
+            writer.writerow([source])
+
+    print(f"Data sources extracted and saved to {output_csv}")
+
+# Usage example
+egp_file_path = "/path/to/your/project.egp"
+output_csv_path = "/path/to/output_data_sources.csv"
+
+extract_data_sources(egp_file_path, output_csv_path)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import zipfile
 import xml.etree.ElementTree as ET
 import re
 import csv
