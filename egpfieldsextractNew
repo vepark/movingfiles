@@ -9,8 +9,9 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
         # Look for .sas files and metadata within the project
         sas_files = [f for f in z.namelist() if f.endswith('.sas') or f.endswith('.xml')]
 
-        data_sources = set()  # Use a set to deduplicate database.table names
-        data_fields = defaultdict(set)  # Store fields for each database.table
+        # Data structures
+        data_sources = set()  # Unique database.table names
+        data_fields = defaultdict(set)  # Map of database.table -> variables
 
         # Regex patterns
         table_alias_regex = re.compile(
@@ -23,7 +24,7 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
             re.IGNORECASE
         )  # Matches `alias.variable`
 
-        alias_map = defaultdict(list)  # Map of aliases to their corresponding database.table
+        alias_map = {}  # Map of alias -> database.table
 
         for file in sas_files:
             with z.open(file) as f:
@@ -32,14 +33,14 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
 
                     # Find and store database.tablename and aliases
                     for table, alias in table_alias_regex.findall(content):
-                        data_sources.add(table)
-                        alias_map[alias].append(table)
+                        data_sources.add(table)  # Add database.table to the set
+                        alias_map[alias] = table  # Map alias to the table
 
-                    # Find and store fields for each alias
+                    # Find and store fields associated with aliases
                     for alias, field in alias_field_regex.findall(content):
-                        if alias in alias_map:  # If the alias matches, add fields to its table
-                            for table in alias_map[alias]:
-                                data_fields[table].add(field)
+                        if alias in alias_map:  # If alias maps to a table
+                            table = alias_map[alias]
+                            data_fields[table].add(field)  # Map fields to the table
                 except Exception as e:
                     print(f"Error reading {file}: {e}")
 
@@ -50,20 +51,20 @@ def extract_data_sources_and_fields_to_excel(egp_file, output_excel):
     sheet1 = workbook.active
     sheet1.title = "Data Sources"
     sheet1.append(["Database.Table"])  # Header
-    for source in sorted(data_sources):  # Sort for consistency
+    for source in sorted(data_sources):  # Add only unique database.table names
         sheet1.append([source])
 
     # Sheet 2: Data Source Fields
     sheet2 = workbook.create_sheet(title="Data Source Fields")
     sheet2.append(["Database.Table", "Variable"])  # Header
     for table, fields in data_fields.items():
-        for field in sorted(fields):  # Sort fields for consistency
+        for field in sorted(fields):  # Add table-variable mappings
             sheet2.append([table, field])
 
     # Save the Excel file
     workbook.save(output_excel)
 
-    print(f"Data sources saved to {output_excel}")
+    print(f"Data sources and fields saved to {output_excel}")
 
 # Usage example
 egp_file_path = "/path/to/your/project.egp"
