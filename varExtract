@@ -37,11 +37,11 @@ def parse_sas_code(file_path):
     select_vars = [var.strip() for sublist in select_vars for var in sublist]
 
     join_vars = join_pattern.findall(code)
-    join_vars = [var.strip().split('=') for var in join_vars]
+    join_vars = [var[0].strip().split('=') for var in join_vars]  # Access the first element of the tuple
     join_vars = [var.strip() for sublist in join_vars for var in sublist]
 
     where_vars = where_pattern.findall(code)
-    where_vars = [var[0].strip().split('and') for var in where_vars]
+    where_vars = [var[0].strip().split('and') for var in where_vars]  # Access the first element of the tuple
     where_vars = [var.strip() for sublist in where_vars for var in sublist]
 
     results = []
@@ -57,6 +57,7 @@ def parse_sas_code(file_path):
                 results.append([table, '', '', var])
 
     return results
+
 
 def write_to_csv(data, output_file):
     headers = ["Database_TableNames", "Select_Var", "Join_Var", "Where_Var"]
