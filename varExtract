@@ -1,5 +1,22 @@
+import zipfile
+import os
 import re
 import csv
+
+def extract_egp(egp_path, output_dir):
+    """Extracts the .egp file into a specified directory."""
+    with zipfile.ZipFile(egp_path, 'r') as zip_ref:
+        zip_ref.extractall(output_dir)
+    print(f"Extracted .egp file to {output_dir}")
+
+def find_sas_files(directory):
+    """Finds all .sas files in the extracted .egp directory."""
+    sas_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.sas'):
+                sas_files.append(os.path.join(root, file))
+    return sas_files
 
 def parse_sas_code(file_path):
     # Enhanced regular expressions to extract information
@@ -60,88 +77,6 @@ def write_to_csv(data, output_file):
         writer.writerow(headers)
         writer.writerows(data)
 
-# Example usage
-file_path = "path_to_your_file.sas"  # Update with your file path
-output_file = "output.csv"
-parsed_data = parse_sas_code(file_path)
-write_to_csv(parsed_data, output_file)
-print(f"Extracted data written to {output_file}")
-
-
-
-
-
-
-
-
-import zipfile
-import os
-import re
-import csv
-
-def extract_egp(egp_path, output_dir):
-    """Extracts the .egp file into a specified directory."""
-    with zipfile.ZipFile(egp_path, 'r') as zip_ref:
-        zip_ref.extractall(output_dir)
-    print(f"Extracted .egp file to {output_dir}")
-
-def find_sas_files(directory):
-    """Finds all .sas files in the extracted .egp directory."""
-    sas_files = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.sas'):
-                sas_files.append(os.path.join(root, file))
-    return sas_files
-
-def parse_sas_code(file_path):
-    # Regular expressions to extract information
-    table_alias_pattern = re.compile(r"(\w+\.\w+)\s+(as\s+)?(\w+)", re.IGNORECASE)
-    select_pattern = re.compile(r"select\s+(.*?)\s+from", re.IGNORECASE | re.DOTALL)
-    join_pattern = re.compile(r"join\s+\w+\.\w+\s+\w+\s+on\s+(.*?)\s+(where|$)", re.IGNORECASE | re.DOTALL)
-    where_pattern = re.compile(r"where\s+(.*?)\s*(group\s+by|order\s+by|$)", re.IGNORECASE | re.DOTALL)
-
-    with open(file_path, 'r') as file:
-        code = file.read()
-
-    # Extract information
-    table_aliases = table_alias_pattern.findall(code)
-    tables = {alias[2]: alias[0] for alias in table_aliases}  # Alias to table mapping
-
-    select_vars = select_pattern.findall(code)
-    select_vars = [var.strip().split(',') for var in select_vars]
-    select_vars = [var.strip() for sublist in select_vars for var in sublist]
-
-    join_vars = join_pattern.findall(code)
-    join_vars = [var[0].strip().split('=') for var in join_vars]  # Access the first element of the tuple
-    join_vars = [var.strip() for sublist in join_vars for var in sublist]
-
-    where_vars = where_pattern.findall(code)
-    where_vars = [var[0].strip().split('and') for var in where_vars]  # Access the first element of the tuple
-    where_vars = [var.strip() for sublist in where_vars for var in sublist]
-
-    results = []
-    for alias, table in tables.items():
-        for var in select_vars:
-            if var.startswith(f"{alias}."):
-                results.append([table, var, '', ''])
-        for var in join_vars:
-            if var.startswith(f"{alias}."):
-                results.append([table, '', var, ''])
-        for var in where_vars:
-            if var.startswith(f"{alias}."):
-                results.append([table, '', '', var])
-
-    return results
-
-
-def write_to_csv(data, output_file):
-    headers = ["Database_TableNames", "Select_Var", "Join_Var", "Where_Var"]
-    with open(output_file, 'w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(headers)
-        writer.writerows(data)
-
 def process_file(file_path, output_csv, temp_dir="temp_extracted"):
     """Handles both .sas and .egp files dynamically."""
     if file_path.endswith('.egp'):
@@ -162,6 +97,6 @@ def process_file(file_path, output_csv, temp_dir="temp_extracted"):
     print(f"Data extracted and written to {output_csv}")
 
 # Example usage
-file_path = "path_to_your_file.sas"  # Change to your file path (.sas or .egp)
+file_path = "path_to_your_file.sas"  # Change to your .sas or .egp file path
 output_csv = "output.csv"
 process_file(file_path, output_csv)
