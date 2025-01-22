@@ -1,3 +1,79 @@
+import re
+import csv
+
+def parse_sas_code(file_path):
+    # Enhanced regular expressions to extract information
+    table_alias_pattern = re.compile(r"(\w+\.\w+)\s+(?:as\s+)?(\w+)", re.IGNORECASE)
+    select_pattern = re.compile(r"select\s+(.*?)\s+from", re.IGNORECASE | re.DOTALL)
+    join_pattern = re.compile(r"join\s+(\w+\.\w+)\s+(?:as\s+)?(\w+).*?on\s+(.*?)\s+(where|group|order|$)", re.IGNORECASE | re.DOTALL)
+    where_pattern = re.compile(r"where\s+(.*?)\s*(group\s+by|order\s+by|$)", re.IGNORECASE | re.DOTALL)
+
+    with open(file_path, 'r') as file:
+        code = file.read()
+
+    # Extract tables and aliases
+    table_aliases = table_alias_pattern.findall(code)
+    tables = {alias[1]: alias[0] for alias in table_aliases}  # Alias to table mapping
+
+    # Extract SELECT variables
+    select_vars = []
+    for match in select_pattern.findall(code):
+        vars_in_select = match.strip().split(',')
+        select_vars.extend(var.strip() for var in vars_in_select)
+
+    # Extract JOIN variables
+    join_vars = []
+    join_tables = {}
+    for match in join_pattern.findall(code):
+        table, alias, condition, _ = match
+        join_tables[alias] = table
+        vars_in_condition = re.split(r'and|or', condition)
+        join_vars.extend(var.strip() for var in vars_in_condition)
+
+    # Extract WHERE variables
+    where_vars = []
+    for match in where_pattern.findall(code):
+        condition = match[0]
+        vars_in_condition = re.split(r'and|or', condition)
+        where_vars.extend(var.strip() for var in vars_in_condition)
+
+    # Combine results
+    results = []
+    all_aliases = {**tables, **join_tables}
+    for alias, table in all_aliases.items():
+        for var in select_vars:
+            if var.startswith(f"{alias}."):
+                results.append([table, var, '', ''])
+        for var in join_vars:
+            if var.startswith(f"{alias}."):
+                results.append([table, '', var, ''])
+        for var in where_vars:
+            if var.startswith(f"{alias}."):
+                results.append([table, '', '', var])
+
+    return results
+
+def write_to_csv(data, output_file):
+    headers = ["Database_TableNames", "Select_Var", "Join_Var", "Where_Var"]
+    with open(output_file, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(headers)
+        writer.writerows(data)
+
+# Example usage
+file_path = "path_to_your_file.sas"  # Update with your file path
+output_file = "output.csv"
+parsed_data = parse_sas_code(file_path)
+write_to_csv(parsed_data, output_file)
+print(f"Extracted data written to {output_file}")
+
+
+
+
+
+
+
+
 import zipfile
 import os
 import re
