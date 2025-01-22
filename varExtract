@@ -1,14 +1,30 @@
+import zipfile
+import os
 import re
 import csv
+
+def extract_egp(egp_path, output_dir):
+    """Extracts the .egp file into a specified directory."""
+    with zipfile.ZipFile(egp_path, 'r') as zip_ref:
+        zip_ref.extractall(output_dir)
+    print(f"Extracted .egp file to {output_dir}")
+
+def find_sas_files(directory):
+    """Finds all .sas files in the extracted .egp directory."""
+    sas_files = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.sas'):
+                sas_files.append(os.path.join(root, file))
+    return sas_files
 
 def parse_sas_code(file_path):
     # Regular expressions to extract information
     table_alias_pattern = re.compile(r"(\w+\.\w+)\s+(as\s+)?(\w+)", re.IGNORECASE)
     select_pattern = re.compile(r"select\s+(.*?)\s+from", re.IGNORECASE | re.DOTALL)
-    join_pattern = re.compile(r"join\s+\w+\.\w+\s+\w+\s+on\s+(.*?)\s+where", re.IGNORECASE | re.DOTALL)
+    join_pattern = re.compile(r"join\s+\w+\.\w+\s+\w+\s+on\s+(.*?)\s+(where|$)", re.IGNORECASE | re.DOTALL)
     where_pattern = re.compile(r"where\s+(.*?)\s*(group\s+by|order\s+by|$)", re.IGNORECASE | re.DOTALL)
 
-    # Open and read the file
     with open(file_path, 'r') as file:
         code = file.read()
 
@@ -28,7 +44,6 @@ def parse_sas_code(file_path):
     where_vars = [var[0].strip().split('and') for var in where_vars]
     where_vars = [var.strip() for sublist in where_vars for var in sublist]
 
-    # Format results for CSV
     results = []
     for alias, table in tables.items():
         for var in select_vars:
@@ -50,9 +65,26 @@ def write_to_csv(data, output_file):
         writer.writerow(headers)
         writer.writerows(data)
 
+def process_file(file_path, output_csv, temp_dir="temp_extracted"):
+    """Handles both .sas and .egp files dynamically."""
+    if file_path.endswith('.egp'):
+        print("Processing .egp file...")
+        extract_egp(file_path, temp_dir)
+        sas_files = find_sas_files(temp_dir)
+    elif file_path.endswith('.sas'):
+        print("Processing .sas file...")
+        sas_files = [file_path]
+    else:
+        raise ValueError("Unsupported file type. Please provide a .sas or .egp file.")
+
+    all_data = []
+    for sas_file in sas_files:
+        all_data.extend(parse_sas_code(sas_file))
+    
+    write_to_csv(all_data, output_csv)
+    print(f"Data extracted and written to {output_csv}")
+
 # Example usage
-file_path = "path_to_your_sas_file.sas"
-output_file = "output.csv"
-parsed_data = parse_sas_code(file_path)
-write_to_csv(parsed_data, output_file)
-print(f"Extracted data has been written to {output_file}")
+file_path = "path_to_your_file.sas"  # Change to your file path (.sas or .egp)
+output_csv = "output.csv"
+process_file(file_path, output_csv)
