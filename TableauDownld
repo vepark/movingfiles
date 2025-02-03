@@ -2,54 +2,68 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import os
 import time
 import pandas as pd
-import os
 
 # Tableau report URL
 tableau_url = "https://your-tableau-server.com/views/YourWorkbookName"
 
-# Initialize Selenium WebDriver (no explicit path required if in PATH)
-driver = webdriver.Chrome()  # Use `webdriver.Edge()` or `webdriver.Firefox()` if using Edge or Firefox
+# Initialize Selenium WebDriver
+driver = webdriver.Chrome()  # Ensure ChromeDriver is installed and in PATH
 
 try:
-    # Open Tableau report
+    # Step 1: Open the Tableau report
     driver.get(tableau_url)
+    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
 
-    # Wait for Tableau iframe to load
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
-
-    # Switch to the Tableau iframe
+    # Step 2: Switch to Tableau iframe
     iframe = driver.find_element(By.TAG_NAME, "iframe")
     driver.switch_to.frame(iframe)
 
-    # Click the "Download" button
-    download_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Download')]"))
+    # Step 3: Click "Choose a format to download"
+    download_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[@title='Choose a format to download']"))
     )
     download_button.click()
 
-    # Select "Crosstab" or "Excel" from the dropdown
-    crosstab_option = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Crosstab')]"))
+    # Step 4: Select "Crosstab" from the dropdown
+    crosstab_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
     )
     crosstab_option.click()
 
-    # Wait for the file to download (adjust wait time as needed)
-    time.sleep(15)  # This depends on your network and Tableau Server speed
+    # Step 5: Choose the sheet (e.g., "Findings")
+    sheet_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Findings')]"))
+    )
+    sheet_option.click()
 
-    # Get the most recent file from the Downloads folder
+    # Step 6: Select "Excel" format
+    excel_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@value='excel']"))
+    )
+    excel_option.click()
+
+    # Step 7: Click "Download"
+    final_download_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Download')]")
+    final_download_button.click()
+
+    # Step 8: Wait for the file to download
+    time.sleep(15)  # Adjust wait time based on download speed
+
+    # Step 9: Locate the most recent file in the Downloads folder
     download_folder = os.path.expanduser("~\\Downloads")
-    files = [os.path.join(download_folder, f) for f in os.listdir(download_folder)]
-    latest_file = max(files, key=os.path.getctime)  # Get the latest file by creation time
+    files = [os.path.join(download_folder, f) for f in os.listdir(download_folder) if f.endswith(".xlsx")]
+    latest_file = max(files, key=os.path.getctime)
 
-    # Load the Excel file into a Pandas DataFrame
+    # Step 10: Load the downloaded Excel file into a Pandas DataFrame
     df = pd.read_excel(latest_file)
-    print("Excel data successfully loaded into DataFrame!")
+    print("Data successfully loaded into DataFrame!")
 
-    # Display the DataFrame to the user (optional)
+    # Optional: Display the DataFrame to the user
     import ace_tools as tools
-    tools.display_dataframe_to_user(name="Tableau DataFrame", dataframe=df)
+    tools.display_dataframe_to_user(name="Tableau Crosstab Data", dataframe=df)
 
 finally:
     # Close the browser
