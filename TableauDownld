@@ -10,7 +10,7 @@ service = webdriver.chrome.service.Service()  # Auto-detect path to ChromeDriver
 driver = webdriver.Chrome(service=service)
 
 # Define Tableau URL
-tableau_url = "https://tableau.wellsfargo.com/vizql/v/DACQMonthlyReconciliationReport/v1/DACQReviewFindings"  # Replace with actual URL
+tableau_url = "https://tableau.com"  # Replace with actual URL
 
 # Folder to save downloaded file
 download_folder = os.path.expanduser("~/Downloads")
@@ -42,7 +42,7 @@ try:
             (By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[1]/div[2]/div[1]/div/div[1]/div/span")
         )
     ).click()
-    print("Selected worksheet 'DAQC Reviews Findings'.")
+    print("Selected worksheet ' Reviews Findings'.")
 
     # Wait for Excel format option and click it
     WebDriverWait(driver, 30).until(
@@ -62,7 +62,7 @@ try:
     print("Clicked the final 'Download' button.")
 
     # Wait for the file to download
-    time.sleep(30)  # Adjust time based on file size
+    time.sleep(10)  # Adjust time based on file size
     print("Waiting for the download to complete...")
 
     # Rename the downloaded file
