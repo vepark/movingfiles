@@ -44,7 +44,7 @@ try:
         EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Review Findings')]"))
     )
     worksheet_option.click()
-    print("Selected worksheet 'DAQC Review Findings'.")
+    print("Selected worksheet 'Review Findings'.")
 
     # Choose "Excel" format
     excel_option = WebDriverWait(driver, 30).until(
