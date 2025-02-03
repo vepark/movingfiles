@@ -5,13 +5,14 @@ from selenium.webdriver.support import expected_conditions as EC
 import os
 import time
 import pandas as pd
+from datetime import datetime
 
 # Initialize Chrome WebDriver
 service = webdriver.chrome.service.Service()  # Auto-detect path to ChromeDriver
 driver = webdriver.Chrome(service=service)
 
 # Define Tableau URL
-tableau_url = "https://tableau.com/"  # Replace with actual URL
+tableau_url = "https://tableau.com"  # Replace with actual URL
 
 # Folder to save downloaded file
 download_folder = os.path.expanduser("~/Downloads")
@@ -32,10 +33,19 @@ try:
     print("Clicked the 'Download' button.")
 
     # Wait for 'Crosstab' option and click it
-    WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
-    ).click()
-    print("Selected 'Crosstab'.")
+    retries = 3
+    for _ in range(retries):
+        try:
+            crosstab_option = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
+            )
+            driver.execute_script("arguments[0].click();", crosstab_option)  # Ensure click is registered
+            print("Selected 'Crosstab'.")
+            break
+        except Exception as e:
+            print(f"Retrying 'Crosstab' selection due to: {e}")
+    else:
+        raise Exception("Failed to select 'Crosstab' after retries.")
 
     # Wait for the final 'Download' button in the popup and click it
     download_button_final = WebDriverWait(driver, 30).until(
@@ -50,17 +60,21 @@ try:
     time.sleep(10)  # Adjust time based on file size
     print("Waiting for the download to complete...")
 
-    # Rename the downloaded file
+    # Rename the downloaded file with a unique suffix
     downloaded_file = None
     for file in os.listdir(download_folder):
         if file.endswith(".crdownload") or file.endswith(".xlsx"):
             downloaded_file = os.path.join(download_folder, file)
             if file.endswith(".crdownload"):
-                final_file = os.path.join(download_folder, "exported_data.xlsx")
+                suffix = datetime.now().strftime("%Y%m%d_%H%M%S")  # Timestamp suffix
+                final_file = os.path.join(download_folder, f"exported_data_{suffix}.xlsx")
                 os.rename(downloaded_file, final_file)
-                print(f"File renamed to 'exported_data.xlsx'")
+                print(f"File renamed to '{final_file}'")
             else:
-                final_file = downloaded_file
+                final_file = os.path.join(
+                    download_folder, f"exported_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                )
+                os.rename(downloaded_file, final_file)
 
     if not downloaded_file:
         raise Exception("Download failed or file not found.")
