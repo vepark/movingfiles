@@ -1,44 +1,90 @@
-import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import os
+import time
 import pandas as pd
 
-# Step 1: Define the export URL and headers
-export_url = "https://.../export-crosstab-to-excel-server"  # Replace with actual URL
-headers = {
-    "Cookie": "YOUR_COOKIE_STRING_HERE",  # Replace with actual cookie
-    "Content-Type": "application/json",   # Adjust if necessary
-}
+# Step 1: Configure Selenium WebDriver
+options = webdriver.ChromeOptions()
+options.add_argument("user-data-dir=C:\\Path\\To\\Your\\Chrome\\Profile")  # Use your browser's profile path for SSO
+driver = webdriver.Chrome(options=options)
 
-# Step 2: Define the payload (if applicable)
-payload = {
-    "worksheet": "Findings",  # Adjust based on your payload
-    "format": "excel"
-}
+try:
+    # Step 2: Open Tableau dashboard
+    tableau_url = "https://tableau/views/YourWorkbookName"  # Replace with the actual Tableau dashboard URL
+    driver.get(tableau_url)
 
-# Step 3: Send the request
-response = requests.post(export_url, headers=headers, json=payload)
+    # Step 3: Wait for Tableau dashboard to load
+    WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.TAG_NAME, "iframe"))
+    )
 
-# Step 4: Debugging the response
-print("Status Code:", response.status_code)
-print("Response Headers:", response.headers)
-print("Response Preview:", response.text[:500])  # Preview the content
+    # Switch to Tableau iframe
+    iframe = driver.find_element(By.TAG_NAME, "iframe")
+    driver.switch_to.frame(iframe)
 
-if response.status_code == 200 and "application/vnd" in response.headers.get("Content-Type", ""):
-    # Save the file
-    with open("exported_crosstab.xlsx", "wb") as f:
-        f.write(response.content)
-    print("File downloaded successfully as 'exported_crosstab.xlsx'.")
+    # Step 4: Automate the "Download" process
+    # Click "Choose a format to download"
+    download_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[@title='Choose a format to download']"))
+    )
+    download_button.click()
 
-    # Try to load into Pandas DataFrame
-    try:
-        df = pd.read_excel("exported_crosstab.xlsx", engine="openpyxl")
-        print("Data successfully loaded into DataFrame!")
-        print(df.head())
+    # Select "Crosstab" from the dropdown
+    crosstab_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
+    )
+    crosstab_option.click()
 
-        # Optional: Display the DataFrame
-        import ace_tools as tools
-        tools.display_dataframe_to_user(name="Exported Crosstab Data", dataframe=df)
-    except Exception as e:
-        print(f"Error loading Excel file: {e}")
-else:
-    print(f"Failed to download file. Status Code: {response.status_code}")
-    print("Response Content:", response.text[:500])  # Inspect response
+    # Select the desired worksheet (e.g., "Review QA")
+    worksheet_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'DAQC Review Findings')]"))
+    )
+    worksheet_option.click()
+
+    # Select "Excel" format
+    excel_option = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//input[@value='excel']"))
+    )
+    excel_option.click()
+
+    # Click the "Download" button
+    final_download_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Download')]"))
+    )
+    final_download_button.click()
+
+    # Step 5: Wait for the file to download and rename it
+    download_folder = os.path.expanduser("~\\Downloads")
+    time.sleep(15)  # Wait for download to complete (adjust if needed)
+
+    # Rename the downloaded file
+    for file in os.listdir(download_folder):
+        if file.endswith(".crdownload"):
+            downloaded_file = os.path.join(download_folder, file)
+            final_file = os.path.join(download_folder, "exported_data.xlsx")
+            os.rename(downloaded_file, final_file)
+            print(f"File renamed successfully to: {final_file}")
+
+    # Step 6: Load the Excel file into a Pandas DataFrame
+    df = pd.read_excel(final_file)
+    print("Data successfully loaded into DataFrame!")
+
+    # Step 7: Perform basic data analysis
+    print("First few rows of the DataFrame:")
+    print(df.head())
+
+    # Example analysis (customize as needed)
+    print("\nSummary statistics:")
+    print(df.describe())
+
+    # Optional: Visualize data
+    import matplotlib.pyplot as plt
+    df.hist(figsize=(10, 8))
+    plt.show()
+
+finally:
+    # Close the browser
+    driver.quit()
