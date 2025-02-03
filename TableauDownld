@@ -1,70 +1,39 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import os
-import time
+import requests
 import pandas as pd
 
-# Tableau report URL
-tableau_url = "https://your-tableau-server.com/views/YourWorkbookName"
+# Step 1: Define the export URL
+export_url = "https://.../export-crosstab-to-excel-server"  # Replace with actual URL
 
-# Initialize Selenium WebDriver
-driver = webdriver.Chrome()  # Ensure ChromeDriver is installed and in PATH
+# Step 2: Add necessary headers (from Developer Tools > Headers)
+headers = {
+    "Cookie": "YOUR_COOKIE_STRING_HERE",  # Copy the full 'Cookie' string from Developer Tools
+    "Content-Type": "application/json",   # Or "multipart/form-data" if applicable
+    # Add any other required headers
+}
 
-try:
-    # Step 1: Open the Tableau report
-    driver.get(tableau_url)
-    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
+# Step 3: Define the payload (from Developer Tools > Payload or Form Data)
+payload = {
+    "worksheet": "worksheet",  # Adjust key-value pairs based on your request
+    "format": "excel"
+}
 
-    # Step 2: Switch to Tableau iframe
-    iframe = driver.find_element(By.TAG_NAME, "iframe")
-    driver.switch_to.frame(iframe)
+# Step 4: Send the POST request
+response = requests.post(export_url, headers=headers, json=payload)  # Use 'data=payload' if it's not JSON
 
-    # Step 3: Click "Choose a format to download"
-    download_button = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[@title='Choose a format to download']"))
-    )
-    download_button.click()
+if response.status_code == 200:
+    # Step 5: Save the file as an Excel file
+    with open("exported_crosstab.xlsx", "wb") as f:
+        f.write(response.content)
+    print("File downloaded successfully as 'exported_crosstab.xlsx'.")
 
-    # Step 4: Select "Crosstab" from the dropdown
-    crosstab_option = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
-    )
-    crosstab_option.click()
-
-    # Step 5: Choose the sheet (e.g., "Findings")
-    sheet_option = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Findings')]"))
-    )
-    sheet_option.click()
-
-    # Step 6: Select "Excel" format
-    excel_option = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//input[@value='excel']"))
-    )
-    excel_option.click()
-
-    # Step 7: Click "Download"
-    final_download_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Download')]")
-    final_download_button.click()
-
-    # Step 8: Wait for the file to download
-    time.sleep(15)  # Adjust wait time based on download speed
-
-    # Step 9: Locate the most recent file in the Downloads folder
-    download_folder = os.path.expanduser("~\\Downloads")
-    files = [os.path.join(download_folder, f) for f in os.listdir(download_folder) if f.endswith(".xlsx")]
-    latest_file = max(files, key=os.path.getctime)
-
-    # Step 10: Load the downloaded Excel file into a Pandas DataFrame
-    df = pd.read_excel(latest_file)
+    # Step 6: Load the Excel file into a Pandas DataFrame
+    df = pd.read_excel("exported_crosstab.xlsx")
     print("Data successfully loaded into DataFrame!")
 
-    # Optional: Display the DataFrame to the user
+    # Optional: Display the DataFrame
     import ace_tools as tools
-    tools.display_dataframe_to_user(name="Tableau Crosstab Data", dataframe=df)
+    tools.display_dataframe_to_user(name="Exported Crosstab Data", dataframe=df)
 
-finally:
-    # Close the browser
-    driver.quit()
+else:
+    print(f"Failed to download file. HTTP Status Code: {response.status_code}")
+    print("Response Text:", response.text)
