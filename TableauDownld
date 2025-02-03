@@ -8,7 +8,7 @@ import time
 import pandas as pd
 
 # Set up ChromeDriver
-chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"
+chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"  # Update path if needed
 service = Service(executable_path=chrome_driver_path)
 driver = webdriver.Chrome(service=service)
 
@@ -16,6 +16,7 @@ try:
     # Open Tableau dashboard
     tableau_url = "https://tableau.com/views/YourWorkbookName"  # Replace with the actual URL
     driver.get(tableau_url)
+    print("Opened Tableau dashboard.")
 
     # Wait for the iframe and switch to it
     WebDriverWait(driver, 60).until(
@@ -41,10 +42,10 @@ try:
 
     # Select worksheet
     worksheet_option = WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Review Findings')]"))
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), ' Review Findings')]"))
     )
     worksheet_option.click()
-    print("Selected worksheet 'Review Findings'.")
+    print("Selected worksheet ' Review Findings'.")
 
     # Choose "Excel" format
     excel_option = WebDriverWait(driver, 30).until(
@@ -55,27 +56,34 @@ try:
 
     # Click the final "Download" button
     download_button_final = WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Download')]"))
+        EC.element_to_be_clickable((By.XPATH, "//button[@data-tb-test-id='export-crosstab-export']"))
     )
     download_button_final.click()
     print("Clicked the final 'Download' button.")
 
-    # Wait for the download to complete
+    # Wait for the download to complete (adjust time based on file size)
     time.sleep(30)
 
     # Rename the downloaded file
     download_folder = os.path.expanduser("~\\Downloads")
+    final_file = None
     for file in os.listdir(download_folder):
         if file.endswith(".crdownload"):
             downloaded_file = os.path.join(download_folder, file)
             final_file = os.path.join(download_folder, "exported_data.xlsx")
             os.rename(downloaded_file, final_file)
             print(f"File renamed successfully to: {final_file}")
+            break
+    else:
+        print("No file was downloaded.")
+        driver.quit()
+        exit()
 
     # Load into Pandas DataFrame
-    df = pd.read_excel(final_file)
-    print("Data successfully loaded into DataFrame!")
-    print(df.head())
+    if final_file:
+        df = pd.read_excel(final_file)
+        print("Data successfully loaded into DataFrame!")
+        print(df.head())
 
 finally:
     driver.quit()
