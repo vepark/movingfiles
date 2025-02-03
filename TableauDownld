@@ -14,7 +14,7 @@ driver = webdriver.Chrome(service=service)
 
 try:
     # Open Tableau dashboard
-    tableau_url = "https://tableau.wellsfargo.com/views/DACQMonthlyReconciliationReport/DACQReviewFindings"  # Replace with actual URL
+    tableau_url = "https://tableau.com"  # Replace with actual URL
     driver.get(tableau_url)
 
     # Wait for iframe and switch to it
@@ -37,7 +37,7 @@ try:
     WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable((By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[1]/div[2]/div/div[1]/div/div[1]/div/span"))
     ).click()
-    print("Selected worksheet 'DAQC Review Findings'.")
+    print("Selected worksheet ' Review Findings'.")
 
     # Wait for Excel format option and click it
     WebDriverWait(driver, 30).until(
