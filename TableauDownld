@@ -4,13 +4,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import os
 import time
+import pandas as pd
 
 # Initialize Chrome WebDriver
 service = webdriver.chrome.service.Service()  # Auto-detect path to ChromeDriver
 driver = webdriver.Chrome(service=service)
 
 # Define Tableau URL
-tableau_url = "https://tableau.com"  # Replace with actual URL
+tableau_url = "https://tableau.com/"  # Replace with actual URL
 
 # Folder to save downloaded file
 download_folder = os.path.expanduser("~/Downloads")
@@ -30,29 +31,7 @@ try:
     WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='download']"))).click()
     print("Clicked the 'Download' button.")
 
-    # Wait for 'Crosstab' option and click it
-    WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//*[@id='viz-viewer-toolbar-download-menu']/div[3]/div/div/span[2]"))
-    ).click()
-    print("Selected 'Crosstab'.")
-
-    # Wait for worksheet selection and click the correct worksheet
-    WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[1]/div[2]/div[1]/div/div[1]/div/span")
-        )
-    ).click()
-    print("Selected worksheet ' Reviews Findings'.")
-
-    # Wait for Excel format option and click it
-    WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[2]/div[2]/label[1]/div")
-        )
-    ).click()
-    print("Selected 'Excel' format.")
-
-    # Wait for the final 'Download' button and click it
+    # Wait for the final 'Download' button in the popup and click it
     download_button_final = WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable(
             (By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[3]/button")
@@ -66,11 +45,25 @@ try:
     print("Waiting for the download to complete...")
 
     # Rename the downloaded file
+    downloaded_file = None
     for file in os.listdir(download_folder):
-        if file.endswith(".crdownload"):
-            final_file = os.path.join(download_folder, file)
-            os.rename(final_file, os.path.join(download_folder, "exported_data.xlsx"))
-            print(f"File renamed to 'exported_data.xlsx'")
+        if file.endswith(".crdownload") or file.endswith(".xlsx"):
+            downloaded_file = os.path.join(download_folder, file)
+            if file.endswith(".crdownload"):
+                final_file = os.path.join(download_folder, "exported_data.xlsx")
+                os.rename(downloaded_file, final_file)
+                print(f"File renamed to 'exported_data.xlsx'")
+            else:
+                final_file = downloaded_file
+
+    if not downloaded_file:
+        raise Exception("Download failed or file not found.")
+
+    # Load the downloaded file into a pandas DataFrame
+    df = pd.read_excel(final_file)
+    print("Excel file loaded into DataFrame successfully.")
+    print(df.head())  # Display the first few rows of the DataFrame for verification
+
 except Exception as e:
     print(f"Error occurred: {e}")
 finally:
