@@ -1,39 +1,44 @@
 import requests
 import pandas as pd
 
-# Step 1: Define the export URL
+# Step 1: Define the export URL and headers
 export_url = "https://.../export-crosstab-to-excel-server"  # Replace with actual URL
-
-# Step 2: Add necessary headers (from Developer Tools > Headers)
 headers = {
-    "Cookie": "YOUR_COOKIE_STRING_HERE",  # Copy the full 'Cookie' string from Developer Tools
-    "Content-Type": "application/json",   # Or "multipart/form-data" if applicable
-    # Add any other required headers
+    "Cookie": "YOUR_COOKIE_STRING_HERE",  # Replace with actual cookie
+    "Content-Type": "application/json",   # Adjust if necessary
 }
 
-# Step 3: Define the payload (from Developer Tools > Payload or Form Data)
+# Step 2: Define the payload (if applicable)
 payload = {
-    "worksheet": "worksheet",  # Adjust key-value pairs based on your request
+    "worksheet": "Findings",  # Adjust based on your payload
     "format": "excel"
 }
 
-# Step 4: Send the POST request
-response = requests.post(export_url, headers=headers, json=payload)  # Use 'data=payload' if it's not JSON
+# Step 3: Send the request
+response = requests.post(export_url, headers=headers, json=payload)
 
-if response.status_code == 200:
-    # Step 5: Save the file as an Excel file
+# Step 4: Debugging the response
+print("Status Code:", response.status_code)
+print("Response Headers:", response.headers)
+print("Response Preview:", response.text[:500])  # Preview the content
+
+if response.status_code == 200 and "application/vnd" in response.headers.get("Content-Type", ""):
+    # Save the file
     with open("exported_crosstab.xlsx", "wb") as f:
         f.write(response.content)
     print("File downloaded successfully as 'exported_crosstab.xlsx'.")
 
-    # Step 6: Load the Excel file into a Pandas DataFrame
-    df = pd.read_excel("exported_crosstab.xlsx")
-    print("Data successfully loaded into DataFrame!")
+    # Try to load into Pandas DataFrame
+    try:
+        df = pd.read_excel("exported_crosstab.xlsx", engine="openpyxl")
+        print("Data successfully loaded into DataFrame!")
+        print(df.head())
 
-    # Optional: Display the DataFrame
-    import ace_tools as tools
-    tools.display_dataframe_to_user(name="Exported Crosstab Data", dataframe=df)
-
+        # Optional: Display the DataFrame
+        import ace_tools as tools
+        tools.display_dataframe_to_user(name="Exported Crosstab Data", dataframe=df)
+    except Exception as e:
+        print(f"Error loading Excel file: {e}")
 else:
-    print(f"Failed to download file. HTTP Status Code: {response.status_code}")
-    print("Response Text:", response.text)
+    print(f"Failed to download file. Status Code: {response.status_code}")
+    print("Response Content:", response.text[:500])  # Inspect response
