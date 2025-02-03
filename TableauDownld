@@ -40,7 +40,7 @@ try:
 
     # Select the desired worksheet (e.g., "Review QA")
     worksheet_option = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'DAQC Review Findings')]"))
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Review QA')]"))
     )
     worksheet_option.click()
 
