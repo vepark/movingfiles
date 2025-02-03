@@ -8,13 +8,13 @@ import os
 import pandas as pd
 
 # Set up ChromeDriver
-chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"
+chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"  # Update the path if needed
 service = Service(executable_path=chrome_driver_path)
 driver = webdriver.Chrome(service=service)
 
 try:
     # Open Tableau dashboard
-    tableau_url = "https://tableau.wellsfargo.com/views/YourWorkbookName"  # Replace with actual URL
+    tableau_url = "https://tableau.wellsfargo.com/views/DACQMonthlyReconciliationReport/DACQReviewFindings"  # Replace with actual URL
     driver.get(tableau_url)
 
     # Wait for iframe and switch to it
@@ -28,24 +28,26 @@ try:
     print("Clicked the 'Download' button.")
 
     # Wait for "Crosstab" option and click it
-    WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))).click()
+    WebDriverWait(driver, 30).until(
+        EC.element_to_be_clickable((By.XPATH, "//*[@id='viz-viewer-toolbar-download-menu']/div[3]/div/div/span[2]"))
+    ).click()
     print("Selected 'Crosstab'.")
 
     # Wait for worksheet selection and click on the correct worksheet
     WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'DAQC Review Findings')]"))
+        EC.element_to_be_clickable((By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[1]/div[2]/div/div[1]/div/div[1]/div/span"))
     ).click()
     print("Selected worksheet 'DAQC Review Findings'.")
 
     # Wait for Excel format option and click it
     WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//input[@value='excel']"))
+        EC.element_to_be_clickable((By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[2]/div[2]/label[1]/div"))
     ).click()
     print("Selected 'Excel' format.")
 
     # Wait for the final "Download" button and click it
     WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[@data-tb-test-id='export-crosstab-export']"))
+        EC.element_to_be_clickable((By.XPATH, "//*[@id='export-crosstab-options-dialog-Dialog-BodyWrapper-Dialog-Body-Id']/div/div[3]/button"))
     ).click()
     print("Clicked the final 'Download' button.")
 
