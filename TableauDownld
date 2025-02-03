@@ -6,28 +6,27 @@ import os
 import time
 import pandas as pd
 
-# Step 1: Configure Selenium WebDriver
-options = webdriver.ChromeOptions()
-options.add_argument("user-data-dir=C:\\Path\\To\\Your\\Chrome\\Profile")  # Use your browser's profile path for SSO
-driver = webdriver.Chrome(options=options)
+# Step 1: Configure Selenium WebDriver for Chrome with specific driver path
+chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"  # Update with your ChromeDriver path
+driver = webdriver.Chrome(executable_path=chrome_driver_path)
 
 try:
-    # Step 2: Open Tableau dashboard
-    tableau_url = "https://tableau/views/YourWorkbookName"  # Replace with the actual Tableau dashboard URL
+    # Step 2: Open the Tableau dashboard
+    tableau_url = "https://tableau/views/YourWorkbookName"  # Replace with the actual dashboard URL
     driver.get(tableau_url)
 
-    # Step 3: Wait for Tableau dashboard to load
-    WebDriverWait(driver, 20).until(
+    # Step 3: Wait for the Tableau iframe to load
+    WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.TAG_NAME, "iframe"))
     )
 
-    # Switch to Tableau iframe
+    # Switch to the iframe containing Tableau
     iframe = driver.find_element(By.TAG_NAME, "iframe")
     driver.switch_to.frame(iframe)
 
-    # Step 4: Automate the "Download" process
+    # Step 4: Trigger the "Download" process
     # Click "Choose a format to download"
-    download_button = WebDriverWait(driver, 20).until(
+    download_button = WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable((By.XPATH, "//button[@title='Choose a format to download']"))
     )
     download_button.click()
@@ -38,29 +37,29 @@ try:
     )
     crosstab_option.click()
 
-    # Select the desired worksheet (e.g., "Review QA")
+    # Select the worksheet to download
     worksheet_option = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Review QA')]"))
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Findings')]"))
     )
     worksheet_option.click()
 
-    # Select "Excel" format
+    # Choose "Excel" format
     excel_option = WebDriverWait(driver, 20).until(
         EC.element_to_be_clickable((By.XPATH, "//input[@value='excel']"))
     )
     excel_option.click()
 
-    # Click the "Download" button
-    final_download_button = WebDriverWait(driver, 20).until(
+    # Click the final "Download" button
+    download_button_final = WebDriverWait(driver, 20).until(
         EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Download')]"))
     )
-    final_download_button.click()
+    download_button_final.click()
 
-    # Step 5: Wait for the file to download and rename it
-    download_folder = os.path.expanduser("~\\Downloads")
-    time.sleep(15)  # Wait for download to complete (adjust if needed)
+    # Step 5: Wait for the download to complete
+    time.sleep(15)  # Adjust based on your network speed
 
     # Rename the downloaded file
+    download_folder = os.path.expanduser("~\\Downloads")
     for file in os.listdir(download_folder):
         if file.endswith(".crdownload"):
             downloaded_file = os.path.join(download_folder, file)
@@ -72,7 +71,7 @@ try:
     df = pd.read_excel(final_file)
     print("Data successfully loaded into DataFrame!")
 
-    # Step 7: Perform basic data analysis
+    # Perform basic data analysis
     print("First few rows of the DataFrame:")
     print(df.head())
 
