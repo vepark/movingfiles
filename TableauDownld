@@ -2,38 +2,43 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 import os
 import time
 import pandas as pd
-
-# Step 1: Set up Selenium WebDriver for Chrome
 from selenium.webdriver.chrome.service import Service
 
-# Use the Service object to specify the ChromeDriver path
+# Set up Selenium WebDriver for Chrome
 chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"  # Update with your path
 service = Service(executable_path=chrome_driver_path)
 driver = webdriver.Chrome(service=service)
 
 try:
-    # Step 2: Open the Tableau dashboard
-    tableau_url = "https://tableau.com/views/YourWorkbookName"  # Replace with the actual dashboard URL
+    # Open the Tableau dashboard
+    tableau_url = "https://tableau.com/views/YourWorkbookName"  # Replace with your actual Tableau URL
     driver.get(tableau_url)
 
-    # Step 3: Wait for the Tableau iframe to load
+    # Wait for the Tableau iframe to load
     WebDriverWait(driver, 30).until(
         EC.presence_of_element_located((By.TAG_NAME, "iframe"))
     )
 
-    # Switch to the iframe containing Tableau
+    # Switch to the Tableau iframe
     iframe = driver.find_element(By.TAG_NAME, "iframe")
     driver.switch_to.frame(iframe)
 
-    # Step 4: Trigger the "Download" process
-    # Click "Choose a format to download"
-    download_button = WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//button[@title='Choose a format to download']"))
+    # Locate the down arrow button (hover-triggered element)
+    download_arrow = WebDriverWait(driver, 30).until(
+        EC.presence_of_element_located((By.XPATH, "//button[@title='Choose a format to download']"))
     )
-    download_button.click()
+
+    # Use ActionChains to hover over the download arrow
+    actions = ActionChains(driver)
+    actions.move_to_element(download_arrow).perform()
+    time.sleep(2)  # Allow time for the menu to appear
+
+    # Now click "Choose a format to download"
+    download_arrow.click()
 
     # Select "Crosstab" from the dropdown
     crosstab_option = WebDriverWait(driver, 20).until(
@@ -43,7 +48,7 @@ try:
 
     # Select the worksheet to download
     worksheet_option = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Findings')]"))
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'Review Findings')]"))
     )
     worksheet_option.click()
 
@@ -53,13 +58,13 @@ try:
     )
     excel_option.click()
 
-    # Click the final "Download" button
+    # Click the "Download" button
     download_button_final = WebDriverWait(driver, 20).until(
         EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Download')]"))
     )
     download_button_final.click()
 
-    # Step 5: Wait for the download to complete
+    # Wait for the file to download
     time.sleep(15)  # Adjust based on your network speed
 
     # Rename the downloaded file
@@ -71,7 +76,7 @@ try:
             os.rename(downloaded_file, final_file)
             print(f"File renamed successfully to: {final_file}")
 
-    # Step 6: Load the Excel file into a Pandas DataFrame
+    # Load the Excel file into a Pandas DataFrame
     df = pd.read_excel(final_file)
     print("Data successfully loaded into DataFrame!")
 
