@@ -1,89 +1,73 @@
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-import os
+from selenium import webdriver
 import time
+import os
 import pandas as pd
 
 # Set up ChromeDriver
-chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"  # Update path if needed
+chrome_driver_path = "C:\\ProgramData\\Google\\ChromeDriver\\chromedriver.exe"
 service = Service(executable_path=chrome_driver_path)
 driver = webdriver.Chrome(service=service)
 
 try:
     # Open Tableau dashboard
-    tableau_url = "https://tableau.com/views/YourWorkbookName"  # Replace with the actual URL
+    tableau_url = "https://tableau.wellsfargo.com/views/YourWorkbookName"  # Replace with actual URL
     driver.get(tableau_url)
-    print("Opened Tableau dashboard.")
 
-    # Wait for the iframe and switch to it
-    WebDriverWait(driver, 60).until(
-        EC.presence_of_element_located((By.TAG_NAME, "iframe"))
-    )
+    # Wait for iframe and switch to it
+    WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
     iframe = driver.find_element(By.TAG_NAME, "iframe")
     driver.switch_to.frame(iframe)
     print("Switched to iframe.")
 
-    # Wait for the "Download" button and click it
-    download_button = WebDriverWait(driver, 60).until(
-        EC.element_to_be_clickable((By.XPATH, "//*[@id='download']"))
-    )
-    download_button.click()
+    # Wait for "Download" button and click it
+    WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='download']"))).click()
     print("Clicked the 'Download' button.")
 
-    # Select "Crosstab"
-    crosstab_option = WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
-    )
-    crosstab_option.click()
+    # Wait for "Crosstab" option and click it
+    WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))).click()
     print("Selected 'Crosstab'.")
 
-    # Select worksheet
-    worksheet_option = WebDriverWait(driver, 30).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), ' Review Findings')]"))
-    )
-    worksheet_option.click()
-    print("Selected worksheet ' Review Findings'.")
+    # Wait for worksheet selection and click on the correct worksheet
+    WebDriverWait(driver, 30).until(
+        EC.element_to_be_clickable((By.XPATH, "//div[contains(text(), 'DAQC Review Findings')]"))
+    ).click()
+    print("Selected worksheet 'DAQC Review Findings'.")
 
-    # Choose "Excel" format
-    excel_option = WebDriverWait(driver, 30).until(
+    # Wait for Excel format option and click it
+    WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable((By.XPATH, "//input[@value='excel']"))
-    )
-    excel_option.click()
+    ).click()
     print("Selected 'Excel' format.")
 
-    # Click the final "Download" button
-    download_button_final = WebDriverWait(driver, 30).until(
+    # Wait for the final "Download" button and click it
+    WebDriverWait(driver, 30).until(
         EC.element_to_be_clickable((By.XPATH, "//button[@data-tb-test-id='export-crosstab-export']"))
-    )
-    download_button_final.click()
+    ).click()
     print("Clicked the final 'Download' button.")
 
-    # Wait for the download to complete (adjust time based on file size)
-    time.sleep(30)
+    # Wait for the file to download
+    time.sleep(30)  # Adjust based on file size
 
     # Rename the downloaded file
     download_folder = os.path.expanduser("~\\Downloads")
-    final_file = None
     for file in os.listdir(download_folder):
         if file.endswith(".crdownload"):
             downloaded_file = os.path.join(download_folder, file)
             final_file = os.path.join(download_folder, "exported_data.xlsx")
             os.rename(downloaded_file, final_file)
-            print(f"File renamed successfully to: {final_file}")
-            break
-    else:
-        print("No file was downloaded.")
-        driver.quit()
-        exit()
+            print(f"File renamed to: {final_file}")
 
-    # Load into Pandas DataFrame
-    if final_file:
-        df = pd.read_excel(final_file)
-        print("Data successfully loaded into DataFrame!")
-        print(df.head())
+    # Load data into a Pandas DataFrame
+    df = pd.read_excel(final_file)
+    print("Data successfully loaded into DataFrame!")
+    print(df.head())
+
+except Exception as e:
+    print(f"Error occurred: {e}")
 
 finally:
     driver.quit()
