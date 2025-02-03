@@ -27,9 +27,15 @@ try:
     driver.switch_to.frame(iframe)
     print("Switched to iframe.")
 
-    # Wait for 'Download' button and click it
+    # Wait for 'Download' button (down arrow) and click it
     WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, "//*[@id='download']"))).click()
     print("Clicked the 'Download' button.")
+
+    # Wait for 'Crosstab' option and click it
+    WebDriverWait(driver, 30).until(
+        EC.element_to_be_clickable((By.XPATH, "//span[text()='Crosstab']"))
+    ).click()
+    print("Selected 'Crosstab'.")
 
     # Wait for the final 'Download' button in the popup and click it
     download_button_final = WebDriverWait(driver, 30).until(
