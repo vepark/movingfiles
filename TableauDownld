@@ -1,53 +1,56 @@
-import requests
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
 import pandas as pd
-import io
+import os
 
-# Tableau Server details
-TABLEAU_SERVER = "https://your-tableau-server.com"
-USERNAME = "your_username"
-PASSWORD = "your_password"
-SITE_ID = ""  # Keep empty for default site
-VIEW_NAME = "YourViewName/TabName"  # Get this from the Tableau URL
-OUTPUT_FILE = "tableau_data.csv"  # Optional if saving locally
+# Tableau report URL
+tableau_url = "https://your-tableau-server.com/views/YourWorkbookName"
 
-# Step 1: Authenticate and Get Session Token
-auth_url = f"{TABLEAU_SERVER}/api/3.10/auth/signin"
-auth_payload = {
-    "credentials": {
-        "name": USERNAME,
-        "password": PASSWORD,
-        "site": {"contentUrl": SITE_ID}
-    }
-}
+# Initialize Selenium WebDriver (no explicit path required if in PATH)
+driver = webdriver.Chrome()  # Use `webdriver.Edge()` or `webdriver.Firefox()` if using Edge or Firefox
 
-session = requests.Session()
-auth_response = session.post(auth_url, json=auth_payload)
-auth_response.raise_for_status()
+try:
+    # Open Tableau report
+    driver.get(tableau_url)
 
-token = auth_response.json()["credentials"]["token"]
-headers = {"X-Tableau-Auth": token}
+    # Wait for Tableau iframe to load
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
 
-# Step 2: Construct URL for Downloading CSV
-csv_url = f"{TABLEAU_SERVER}/views/{VIEW_NAME}/csv"
+    # Switch to the Tableau iframe
+    iframe = driver.find_element(By.TAG_NAME, "iframe")
+    driver.switch_to.frame(iframe)
 
-# Step 3: Download CSV data
-response = session.get(csv_url, headers=headers)
+    # Click the "Download" button
+    download_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Download')]"))
+    )
+    download_button.click()
 
-if response.status_code == 200:
-    # Load data into a Pandas DataFrame
-    df = pd.read_csv(io.StringIO(response.text))
-    print("Tableau data downloaded successfully!")
-    
-    # Optionally save as CSV
-    df.to_csv(OUTPUT_FILE, index=False)
-    print(f"Data saved to {OUTPUT_FILE}")
+    # Select "Crosstab" or "Excel" from the dropdown
+    crosstab_option = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Crosstab')]"))
+    )
+    crosstab_option.click()
 
-    # Display DataFrame
+    # Wait for the file to download (adjust wait time as needed)
+    time.sleep(15)  # This depends on your network and Tableau Server speed
+
+    # Get the most recent file from the Downloads folder
+    download_folder = os.path.expanduser("~\\Downloads")
+    files = [os.path.join(download_folder, f) for f in os.listdir(download_folder)]
+    latest_file = max(files, key=os.path.getctime)  # Get the latest file by creation time
+
+    # Load the Excel file into a Pandas DataFrame
+    df = pd.read_excel(latest_file)
+    print("Excel data successfully loaded into DataFrame!")
+
+    # Display the DataFrame to the user (optional)
     import ace_tools as tools
-    tools.display_dataframe_to_user(name="Tableau Report Data", dataframe=df)
+    tools.display_dataframe_to_user(name="Tableau DataFrame", dataframe=df)
 
-else:
-    print("Failed to download data:", response.status_code, response.text)
-
-# Step 4: Sign Out
-session.post(f"{TABLEAU_SERVER}/api/3.10/auth/signout", headers=headers)
+finally:
+    # Close the browser
+    driver.quit()
