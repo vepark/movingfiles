@@ -3,58 +3,111 @@ import requests
 import zipfile
 from io import BytesIO
 
-def construct_github_url(base_url, id_variable, two_digit_number):
+def construct_github_url(base_url, id_variable, phase):
     """
-    Constructs the GitHub URL based on the provided base URL, ID variable, and two-digit number.
+    Constructs the GitHub URL correctly.
+    Ensures the correct formatting of the repository URL.
 
     Args:
-        base_url (str): The standard base URL of the GitHub repository.
-        id_variable (str): The ID variable starting with 'DR' followed by a number.
-        two_digit_number (str): A two-digit number as a string (e.g., '01', '02').
+        base_url (str): Base URL of the GitHub repository.
+        id_variable (str): The ID string (e.g., '21332570').
+        phase (str): Phase number (e.g., '01', '02').
 
     Returns:
-        str: The constructed GitHub URL.
+        str: Properly formatted GitHub repository URL.
     """
-    return f"{base_url}/{id_variable}-P{two_digit_number}"
+    repo_url = f"{base_url}-{id_variable}-P{phase}"  # Correctly format repo URL
+    return repo_url
 
-def download_and_extract_zip(github_url, local_dir, token):
+def download_single_file(github_url, file_name, local_dir, token, branch="main"):
     """
-    Downloads the repository as a ZIP file from GitHub and extracts all .egp files to the local directory.
+    Downloads a **single file** from GitHub instead of the whole ZIP.
+    
+    Args:
+        github_url (str): GitHub repository URL.
+        file_name (str): Name of the file to download.
+        local_dir (str): Destination directory.
+        token (str): GitHub API token.
+        branch (str, optional): Branch name. Defaults to "main".
+
+    Returns:
+        None
+    """
+    raw_url = f"{github_url.replace('github.com', 'raw.githubusercontent.com')}/{branch}/{file_name}"
+
+    headers = {"Authorization": f"token {token}"}
+    
+    try:
+        response = requests.get(raw_url, headers=headers)
+        response.raise_for_status()
+        
+        if "text/html" in response.headers.get("Content-Type", ""):
+            raise Exception("Error: Received an HTML page instead of the file. Check the file path or authentication.")
+
+    except requests.exceptions.HTTPError as http_err:
+        if response.status_code == 404:
+            raise Exception(f"File not found: {raw_url}")
+        raise Exception(f"HTTP error occurred: {http_err}")
+    except Exception as err:
+        raise Exception(f"An error occurred: {err}")
+
+    os.makedirs(local_dir, exist_ok=True)
+    local_file_path = os.path.join(local_dir, file_name)
+
+    with open(local_file_path, "wb") as local_file:
+        local_file.write(response.content)
+
+    print(f"✅ File '{file_name}' has been downloaded successfully to '{local_file_path}'.")
+
+def download_and_extract_zip(github_url, local_dir, token, branch="main"):
+    """
+    Downloads the entire repository as a ZIP and extracts only `.egp` files.
 
     Args:
-        github_url (str): The URL of the GitHub repository.
-        local_dir (str): The local directory to save the .egp files.
-        token (str): GitHub API token for authentication.
+        github_url (str): GitHub repository URL.
+        local_dir (str): Directory to extract the `.egp` files.
+        token (str): GitHub API token.
+        branch (str, optional): Branch name. Defaults to "main".
+
+    Returns:
+        None
     """
-    # Ensure the local directory exists
     os.makedirs(local_dir, exist_ok=True)
 
-    # Construct the API URL for downloading the repository as a ZIP file
-    api_url = f"{github_url}/archive/refs/heads/main.zip"
+    zip_url = f"{github_url}/archive/refs/heads/{branch}.zip"
+    headers = {"Authorization": f"token {token}"}
 
-    # Set up headers for authentication
-    headers = {'Authorization': f'token {token}'}
+    try:
+        response = requests.get(zip_url, headers=headers)
+        response.raise_for_status()
 
-    # Download the ZIP file
-    response = requests.get(api_url, headers=headers)
-    if response.status_code == 200:
         with zipfile.ZipFile(BytesIO(response.content)) as z:
             for file_info in z.infolist():
-                if file_info.filename.endswith('.egp'):
-                    # Extract .egp files to the local directory
+                if file_info.filename.endswith(".egp"):
                     file_info.filename = os.path.basename(file_info.filename)  # Remove path info
                     z.extract(file_info, local_dir)
-                    print(f"Extracted: {file_info.filename}")
-    else:
-        print(f"Failed to download the repository: {response.status_code}")
+                    print(f"✅ Extracted: {file_info.filename}")
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"❌ Failed to download the repository: {http_err}")
 
 if __name__ == "__main__":
-    # Example usage
-    base_url = "https://github.com/your-organization/your-repo"
-    id_variable = "DR12345"  # Example ID variable
-    two_digit_number = "01"  # Example two-digit number
-    local_dir = r"C:\path\to\your\local\directory"
-    token = "your_personal_access_token"  # Replace with your actual GitHub API token
+    base_url = "https://github.wellsfargo.com/NonApp-crcoerem-CR"  # Base GitHub repo URL
+    id_variable = "21332570"  # Example ID variable
+    phase = "01"  # Example phase number
 
-    github_url = construct_github_url(base_url, id_variable, two_digit_number)
-    download_and_extract_zip(github_url, local_dir, token)
+    # ✅ Correctly format the repo URL
+    github_url = construct_github_url(base_url, id_variable, phase)
+
+    # ✅ Correct local directory
+    local_dir = r"C:\Users\u419556\OneDrive - Wells Fargo\Documents\python"
+
+    # ✅ Replace with your actual GitHub API Token
+    token = "your_personal_access_token"
+
+    # ✅ Download **specific** file (preferred method)
+    file_name = "21332570_Code.egg"  # Replace with actual file name
+    download_single_file(github_url, file_name, local_dir, token)
+
+    # ✅ Alternative: Download **entire ZIP** and extract `.egp` files
+    # download_and_extract_zip(github_url, local_dir, token)  # Uncomment if needed
