@@ -1,19 +1,30 @@
 from docx import Document
 
-def copy_dropdowns(source_doc_path, target_doc_path):
-    # Load source and target documents
-    source_doc = Document(source_doc_path)
-    target_doc = Document(target_doc_path)
+# Define source and target file paths
+source_doc_path = r"C:\path\to\source.docx"  # Use raw string or double backslashes
+target_doc_path = r"C:\path\to\target.docx"  # Use raw string or double backslashes
 
-    # Iterate through the form fields in the source document
+def copy_dropdowns(source_doc_path, target_doc_path):
+    # Load source document
+    source_doc = Document(source_doc_path)
+
+    # Create a new document (or load existing one if needed)
+    try:
+        target_doc = Document(target_doc_path)  # Try loading existing file
+    except:
+        target_doc = Document()  # Create a new document if it doesn't exist
+
+    # Iterate through paragraphs in the source document
     for para in source_doc.paragraphs:
+        new_para = target_doc.add_paragraph()
         for run in para.runs:
-            if "FORM DROPDOWN" in run.text:  # Identifying dropdown fields
-                target_doc.add_paragraph(run.text)  # Copy the entire dropdown field
+            new_run = new_para.add_run(run.text)  # Copy text formatting
+            new_run.bold = run.bold
+            new_run.italic = run.italic
 
     # Save the updated document
     target_doc.save(target_doc_path)
-    print("All dropdowns copied successfully!")
+    print(f"All dropdowns copied from {source_doc_path} to {target_doc_path} successfully!")
 
-# Usage
-copy_dropdowns("source.docx", "target.docx")
+# Run the function
+copy_dropdowns(source_doc_path, target_doc_path)
