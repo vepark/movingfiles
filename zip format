@@ -1,0 +1,31 @@
+import cx_Oracle
+
+# Database connection details
+dsn = cx_Oracle.makedsn("your_host", 1521, service_name="your_service")
+conn = cx_Oracle.connect("your_user", "your_password", dsn)
+cursor = conn.cursor()
+
+# SQL query to format ZIP codes directly in Oracle
+query = """
+SELECT zip_code,
+       CASE 
+           WHEN LENGTH(zip_code) = 9 AND REGEXP_LIKE(zip_code, '^[0-9]{9}$') 
+               THEN SUBSTR(zip_code, 1, 5) || '-' || SUBSTR(zip_code, 6, 4)
+           WHEN LENGTH(zip_code) = 5 AND REGEXP_LIKE(zip_code, '^[0-9]{5}$') 
+               THEN zip_code
+           ELSE NULL  -- Invalid ZIP codes will be NULL
+       END AS formatted_zip
+FROM your_table
+WHERE id = :id
+"""
+
+# Example: Fetching a formatted ZIP code for a specific record
+cursor.execute(query, {"id": 1})  # Replace with actual ID
+result = cursor.fetchall()
+
+# Print results
+for row in result:
+    print(f"Original ZIP: {row[0]}, Formatted ZIP: {row[1]}")
+
+cursor.close()
+conn.close()
