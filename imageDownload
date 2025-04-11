@@ -1,0 +1,23 @@
+/* Set output path for the image */
+filename outimg '/your/path/output_image.jpg' recfm=n;
+
+/* Extract the BLOB using SQL pass-through */
+proc sql;
+    connect to oracle (user=your_user password=your_pass path='your_oracle_tns');
+
+    create table image_data as
+    select *
+    from connection to oracle (
+        select your_blob_column
+        from your_table
+        where your_id_column = 101  /* <-- set your desired ID here */
+    );
+quit;
+
+/* Write binary content to file */
+data _null_;
+    set image_data;
+    file outimg recfm=n;
+    if not missing(your_blob_column) then
+        put your_blob_column $varying32767. your_blob_column_length;
+run;
