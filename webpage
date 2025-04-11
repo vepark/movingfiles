@@ -1,29 +1,42 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from lxml import html
 import time
 
-# Launch Chrome
-driver = webdriver.Chrome()
-driver.get("https://confluence.wellsfargo.net/display/CRC/CRA+Common+Code+Inventory")
+# Set up Chrome (optionally headless)
+options = Options()
+# options.add_argument("--headless")  # Uncomment to run in background
 
-# Give yourself 20–30 seconds to manually click and complete login
+driver = webdriver.Chrome(options=options)
+
+# Step 1: Go to Confluence page
+url = "https://confluence.wellsfargo.net/display/CRC/CRA+Common+Code+Inventory"
+driver.get(url)
+
+# Step 2: Wait and click "Channel Secure Login"
+try:
+    login_button = WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Channel Secure Login')]"))
+    )
+    login_button.click()
+    print("Clicked Channel Secure Login")
+except Exception as e:
+    print("Login button not found:", e)
+
+# Step 3: Wait for page to load fully after login
 time.sleep(25)
 
-# Get the full page HTML after login
-page_source = driver.page_source
-tree = html.fromstring(page_source)
+# Step 4: Extract page HTML and title
+tree = html.fromstring(driver.page_source)
+title = tree.xpath('//title/text()')
+print("Page Title:", title)
 
-# Extract the first table (or tweak for the exact one)
-tables = tree.xpath('//table')
-print(f"Found {len(tables)} tables")
+# Optional: Save the HTML if needed
+with open("page_after_login.html", "w", encoding="utf-8") as f:
+    f.write(driver.page_source)
 
-# Example: Get rows and cells from the first table
-if tables:
-    rows = tables[0].xpath('.//tr')
-    for row in rows:
-        cells = row.xpath('.//th|.//td')
-        print([cell.text_content().strip() for cell in cells])
-
-# Close browser
+# Step 5: Close browser
 driver.quit()
