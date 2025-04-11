@@ -3,26 +3,27 @@ from selenium.webdriver.common.by import By
 from lxml import html
 import time
 
-# Set up Chrome browser
+# Launch Chrome
 driver = webdriver.Chrome()
+driver.get("https://confluence.wellsfargo.net/display/CRC/CRA+Common+Code+Inventory")
 
-# Go to the Confluence page
-driver.get("https://confluence.Code+Inventory")
+# Give yourself 20–30 seconds to manually click and complete login
+time.sleep(25)
 
-# Wait for manual login or auto-redirect (adjust time as needed)
-time.sleep(20)  # Give time to manually click and finish login
-
-# Get the page source after login
+# Get the full page HTML after login
 page_source = driver.page_source
-
-# Parse with lxml
 tree = html.fromstring(page_source)
-title = tree.xpath('//title/text()')
-print("Page Title:", title)
 
-# Optional: Save HTML locally
-with open("page.html", "w", encoding="utf-8") as f:
-    f.write(page_source)
+# Extract the first table (or tweak for the exact one)
+tables = tree.xpath('//table')
+print(f"Found {len(tables)} tables")
+
+# Example: Get rows and cells from the first table
+if tables:
+    rows = tables[0].xpath('.//tr')
+    for row in rows:
+        cells = row.xpath('.//th|.//td')
+        print([cell.text_content().strip() for cell in cells])
 
 # Close browser
 driver.quit()
