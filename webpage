@@ -1,0 +1,28 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from lxml import html
+import time
+
+# Set up Chrome browser
+driver = webdriver.Chrome()
+
+# Go to the Confluence page
+driver.get("https://confluence.Code+Inventory")
+
+# Wait for manual login or auto-redirect (adjust time as needed)
+time.sleep(20)  # Give time to manually click and finish login
+
+# Get the page source after login
+page_source = driver.page_source
+
+# Parse with lxml
+tree = html.fromstring(page_source)
+title = tree.xpath('//title/text()')
+print("Page Title:", title)
+
+# Optional: Save HTML locally
+with open("page.html", "w", encoding="utf-8") as f:
+    f.write(page_source)
+
+# Close browser
+driver.quit()
