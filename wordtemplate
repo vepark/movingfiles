@@ -1,57 +1,72 @@
+
+
 import pandas as pd
 from docx import Document
 import os
 
-# Load your Excel data
-df = pd.read_excel("sample_case_data.xlsx", dtype={"CaseID": str})  # Make sure CaseID is read as text
+# Load Excel data
+df = pd.read_excel("sample_case_data.xlsx", dtype={"CaseID": str})
 
-# Path to Word template and output folder
+# Paths
 template_path = "research_template.docx"
 output_dir = "GeneratedDocs"
 os.makedirs(output_dir, exist_ok=True)
 
-# Label-to-column map based on Word labels and Excel column headers
+# Label to Excel column map, indexed by (Section Title, Label)
 label_to_column = {
-    "Case ID:": "CaseID",
-    "Case Owner:": "CaseOwner",
-    "Customer (Complainant) Name:": "CustomerName",
-    "Customer Number (ECN):": "ECN",
-    "Original Note Summary:": "OriginalNote",
-    "Updated Note Summary:": "UpdatedNote",
-    "Response Bullet List:": "ResponseBulletList"
+    # Case Info section (non-sectioned)
+    ("Case Information", "Case ID:"): "CaseID",
+    ("Case Information", "Case Owner:"): "CaseOwner",
+    ("Case Information", "Customer (Complainant) Name:"): "CustomerName",
+    ("Case Information", "Customer Number (ECN):"): "ECN",
+
+    # Primary Complaint
+    ("Primary Complaint", "Enter Customer Problem and Description"): "PrimaryComplaint_Description",
+    ("Primary Complaint", "List details from the complaint"): "PrimaryComplaint_Details",
+    ("Primary Complaint", "Cite documents, tools, systems"): "PrimaryComplaint_Citations",
+    ("Primary Complaint", "Summarize findings of the research"): "PrimaryComplaint_Summary",
+
+    # Secondary Complaint
+    ("Secondary Complaint", "Enter Customer Problem and Description"): "SecondaryComplaint_Description",
+    ("Secondary Complaint", "List details from the complaint"): "SecondaryComplaint_Details",
+    ("Secondary Complaint", "Cite documents, tools, systems"): "SecondaryComplaint_Citations",
+
+    # Additional Complaint
+    ("Additional Complaint", "Enter Customer Problem and Description"): "AdditionalComplaint_Description",
+    ("Additional Complaint", "List details from the complaint"): "AdditionalComplaint_Details",
+    ("Additional Complaint", "Cite documents, tools, systems"): "AdditionalComplaint_Citations"
 }
 
-# Function to match starting label and insert into right-side cell
-def fill_table_right_cell(table, label_to_value):
-    for row in table.rows:
-        if len(row.cells) >= 2:
-            left_text = row.cells[0].text.strip()
-            for label, value in label_to_value.items():
-                if left_text.startswith(label):
-                    row.cells[1].text = str(value)
-                    break
+# Function to fill table cells based on section title and label
+def fill_table_right_cell(table, label_to_value, label_to_column):
+    section_title = table.rows[0].cells[0].text.strip()  # top-left cell as section title
 
-# Loop through each row (case) and create filled document
+    for row in table.rows:
+        for i, cell in enumerate(row.cells):
+            label = cell.text.strip()
+            key = (section_title, label)
+            if key in label_to_column:
+                col = label_to_column[key]
+                value = label_to_value.get(col, "")
+                if i + 1 < len(row.cells):
+                    row.cells[i + 1].text = str(value)
+
+# Main loop
 for idx, row in df.iterrows():
     doc = Document(template_path)
 
-    # Build label-to-value dictionary for this row
+    # Build dictionary of all values for this row
     label_to_value = {
-        label: str(row[col]).strip() if pd.notnull(row[col]) else ""
-        for label, col in label_to_column.items()
+        col_key: str(row[col_val]).strip() if pd.notnull(row[col_val]) else ""
+        for col_key, col_val in label_to_column.items()
     }
 
-    # Fill all tables in the document
+    # Process every table in the Word document
     for table in doc.tables:
-        fill_table_right_cell(table, label_to_value)
+        fill_table_right_cell(table, label_to_value, label_to_column)
 
-    # Preserve leading zeros for CaseID and ensure it's 16 digits (adjust if needed)
+    # Save output with leading zeros preserved (e.g., 16-digit CaseID)
     case_id = str(row["CaseID"]).zfill(16)
+    doc.save(os.path.join(output_dir, f"Case_{case_id}.docx"))
 
-    # Save output file
-    output_file = os.path.join(output_dir, f"Case_{case_id}.docx")
-    doc.save(output_file)
-
-print("All case documents created successfully with leading-zero CaseIDs.")
-
-
+print("All documents created successfully.")
