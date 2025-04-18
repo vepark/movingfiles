@@ -3,14 +3,14 @@ from docx import Document
 import os
 
 # Load your Excel data
-df = pd.read_excel("sample_case_data.xlsx")  # match your actual file name
+df = pd.read_excel("sample_case_data.xlsx", dtype={"CaseID": str})  # Make sure CaseID is read as text
 
-# File paths
-template_path = "research_template.docx"     # match your actual template file
+# Path to Word template and output folder
+template_path = "research_template.docx"
 output_dir = "GeneratedDocs"
 os.makedirs(output_dir, exist_ok=True)
 
-# Label-to-Excel field mapping
+# Label-to-column map based on Word labels and Excel column headers
 label_to_column = {
     "Case ID:": "CaseID",
     "Case Owner:": "CaseOwner",
@@ -21,36 +21,37 @@ label_to_column = {
     "Response Bullet List:": "ResponseBulletList"
 }
 
-def fill_labels_in_doc(doc, label_to_value):
-    # Replace labels in paragraphs
-    for para in doc.paragraphs:
-        for label, value in label_to_value.items():
-            if label in para.text:
-                for run in para.runs:
-                    if label in run.text:
-                        run.text = run.text.replace(label, f"{label} {value}")
+# Function to match starting label and insert into right-side cell
+def fill_table_right_cell(table, label_to_value):
+    for row in table.rows:
+        if len(row.cells) >= 2:
+            left_text = row.cells[0].text.strip()
+            for label, value in label_to_value.items():
+                if left_text.startswith(label):
+                    row.cells[1].text = str(value)
+                    break
 
-    # Replace labels inside table cells
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    for label, value in label_to_value.items():
-                        if label in para.text:
-                            for run in para.runs:
-                                if label in run.text:
-                                    run.text = run.text.replace(label, f"{label} {value}")
-
-# Loop through Excel rows and generate a doc per case
-for i, row in df.iterrows():
+# Loop through each row (case) and create filled document
+for idx, row in df.iterrows():
     doc = Document(template_path)
-    
-    # Build value map for this row
-    label_to_value = {label: str(row[col]) for label, col in label_to_column.items()}
-    
-    fill_labels_in_doc(doc, label_to_value)
-    
-    output_file = os.path.join(output_dir, f"Case_{row['CaseID']}.docx")
+
+    # Build label-to-value dictionary for this row
+    label_to_value = {
+        label: str(row[col]).strip() if pd.notnull(row[col]) else ""
+        for label, col in label_to_column.items()
+    }
+
+    # Fill all tables in the document
+    for table in doc.tables:
+        fill_table_right_cell(table, label_to_value)
+
+    # Preserve leading zeros for CaseID and ensure it's 16 digits (adjust if needed)
+    case_id = str(row["CaseID"]).zfill(16)
+
+    # Save output file
+    output_file = os.path.join(output_dir, f"Case_{case_id}.docx")
     doc.save(output_file)
 
-print("Documents created for all cases.")
+print("All case documents created successfully with leading-zero CaseIDs.")
+
+
