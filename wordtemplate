@@ -2,48 +2,55 @@ import pandas as pd
 from docx import Document
 import os
 
-# Load the data table
-df = pd.read_excel("case_data.xlsx")  # or use read_csv("case_data.csv")
+# Load your Excel data
+df = pd.read_excel("sample_case_data.xlsx")  # match your actual file name
 
-# Load the template once
-template_path = "research_template.docx"
-
-# Output directory
+# File paths
+template_path = "research_template.docx"     # match your actual template file
 output_dir = "GeneratedDocs"
 os.makedirs(output_dir, exist_ok=True)
 
-# Loop through each row
-for idx, row in df.iterrows():
-    # Load template for each document
-    doc = Document(template_path)
+# Label-to-Excel field mapping
+label_to_column = {
+    "Case ID:": "CaseID",
+    "Case Owner:": "CaseOwner",
+    "Customer (Complainant) Name:": "CustomerName",
+    "Customer Number (ECN):": "ECN",
+    "Original Note Summary:": "OriginalNote",
+    "Updated Note Summary:": "UpdatedNote",
+    "Response Bullet List:": "ResponseBulletList"
+}
 
-    # Dictionary for replacements
-    replacements = {
-        "<<CaseID>>": str(row["CaseID"]),
-        "<<CaseOwner>>": str(row["CaseOwner"]),
-        "<<CustomerName>>": str(row["CustomerName"]),
-        "<<ECN>>": str(row["ECN"]),
-        "<<OriginalNote>>": str(row["OriginalNote"]),
-        "<<UpdatedNote>>": str(row["UpdatedNote"]),
-        "<<ResponseBulletList>>": str(row["ResponseBulletList"]),
-    }
-
-    # Replace text in all paragraphs
+def fill_labels_in_doc(doc, label_to_value):
+    # Replace labels in paragraphs
     for para in doc.paragraphs:
-        for key, val in replacements.items():
-            if key in para.text:
-                para.text = para.text.replace(key, val)
+        for label, value in label_to_value.items():
+            if label in para.text:
+                for run in para.runs:
+                    if label in run.text:
+                        run.text = run.text.replace(label, f"{label} {value}")
 
-    # Replace text in tables
+    # Replace labels inside table cells
     for table in doc.tables:
-        for row_cells in table.rows:
-            for cell in row_cells.cells:
-                for key, val in replacements.items():
-                    if key in cell.text:
-                        cell.text = cell.text.replace(key, val)
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    for label, value in label_to_value.items():
+                        if label in para.text:
+                            for run in para.runs:
+                                if label in run.text:
+                                    run.text = run.text.replace(label, f"{label} {value}")
 
-    # Save each filled doc
-    output_filename = os.path.join(output_dir, f"Case_{row['CaseID']}.docx")
-    doc.save(output_filename)
+# Loop through Excel rows and generate a doc per case
+for i, row in df.iterrows():
+    doc = Document(template_path)
+    
+    # Build value map for this row
+    label_to_value = {label: str(row[col]) for label, col in label_to_column.items()}
+    
+    fill_labels_in_doc(doc, label_to_value)
+    
+    output_file = os.path.join(output_dir, f"Case_{row['CaseID']}.docx")
+    doc.save(output_file)
 
-print("All documents generated successfully.")
+print("Documents created for all cases.")
