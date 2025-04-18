@@ -1,0 +1,49 @@
+import pandas as pd
+from docx import Document
+import os
+
+# Load the data table
+df = pd.read_excel("case_data.xlsx")  # or use read_csv("case_data.csv")
+
+# Load the template once
+template_path = "research_template.docx"
+
+# Output directory
+output_dir = "GeneratedDocs"
+os.makedirs(output_dir, exist_ok=True)
+
+# Loop through each row
+for idx, row in df.iterrows():
+    # Load template for each document
+    doc = Document(template_path)
+
+    # Dictionary for replacements
+    replacements = {
+        "<<CaseID>>": str(row["CaseID"]),
+        "<<CaseOwner>>": str(row["CaseOwner"]),
+        "<<CustomerName>>": str(row["CustomerName"]),
+        "<<ECN>>": str(row["ECN"]),
+        "<<OriginalNote>>": str(row["OriginalNote"]),
+        "<<UpdatedNote>>": str(row["UpdatedNote"]),
+        "<<ResponseBulletList>>": str(row["ResponseBulletList"]),
+    }
+
+    # Replace text in all paragraphs
+    for para in doc.paragraphs:
+        for key, val in replacements.items():
+            if key in para.text:
+                para.text = para.text.replace(key, val)
+
+    # Replace text in tables
+    for table in doc.tables:
+        for row_cells in table.rows:
+            for cell in row_cells.cells:
+                for key, val in replacements.items():
+                    if key in cell.text:
+                        cell.text = cell.text.replace(key, val)
+
+    # Save each filled doc
+    output_filename = os.path.join(output_dir, f"Case_{row['CaseID']}.docx")
+    doc.save(output_filename)
+
+print("All documents generated successfully.")
