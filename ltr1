@@ -1,0 +1,36 @@
+import re
+import pandas as pd
+from docx import Document
+
+# Load Word document
+doc = Document("your_letter.docx")
+
+# Extract full text
+full_text = "\n".join([para.text for para in doc.paragraphs])
+
+# Define regex to capture fields
+name = re.search(r'\n([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?[A-Z][a-z]+)', full_text)
+address = re.search(r'\n(\d{1,5} .+?\n?.+?\d{5}(?:-\d{4})?)', full_text)
+case_number = re.search(r'Wells Fargo case number:\s*(\d+)', full_text)
+account_ending = re.search(r'Account number ending in[:\s]+(\d+)', full_text)
+complaint_reason = re.search(r'\[Primary Complaint Reason\]\s*(.+?)\n', full_text)
+resolution_notes = re.search(r'Language used when complaint is about\s*(.+?)\n', full_text)
+
+# Assemble data
+data = {
+    'Name': name.group(1).strip() if name else '',
+    'Address': address.group(1).strip().replace('\n', ', ') if address else '',
+    'Case Number': case_number.group(1) if case_number else '',
+    'Account Ending': account_ending.group(1) if account_ending else '',
+    'Complaint Reason': complaint_reason.group(1).strip() if complaint_reason else '',
+    'Resolution Notes': resolution_notes.group(1).strip() if resolution_notes else ''
+}
+
+# Create a table
+df = pd.DataFrame([data])
+
+# Export to Excel
+df.to_excel("structured_letter_data.xlsx", index=False)
+# df.to_csv("structured_letter_data.csv", index=False)
+
+print("Letter data extracted and saved.")
