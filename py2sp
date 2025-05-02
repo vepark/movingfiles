@@ -1,0 +1,241 @@
+I'll show you how to test a connection from Python to SharePoint using client credentials (client ID, client secret) and verify it by printing a site title.
+
+Here's a complete example that uses the Office 365 REST Python Client library to authenticate and retrieve the site title:
+
+```python
+import requests
+from office365.runtime.auth.client_credential import ClientCredential
+from office365.sharepoint.client_context import ClientContext
+
+def test_sharepoint_connection(site_url, client_id, client_secret):
+    try:
+        # Create a client credentials object
+        credentials = ClientCredential(client_id, client_secret)
+        
+        # Create a client context
+        ctx = ClientContext(site_url).with_credentials(credentials)
+        
+        # Get the web (site) information and load the title property
+        web = ctx.web
+        ctx.load(web, ["Title"])
+        ctx.execute_query()
+        
+        # Print the site title
+        print(f"Connection successful! Site title: {web.properties['Title']}")
+        return True
+    
+    except Exception as e:
+        print(f"Error connecting to SharePoint: {str(e)}")
+        return False
+
+# Replace with your actual values
+site_url = "https://yourtenant.sharepoint.com/sites/yoursite"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+
+# Test the connection
+test_sharepoint_connection(site_url, client_id, client_secret)
+```
+
+To use this code:
+
+1. Install the required package:
+   ```
+   pip install Office365-REST-Python-Client
+   ```
+
+2. Replace the placeholder values with your actual SharePoint information:
+   - `site_url`: Your complete SharePoint site URL
+   - `client_id`: Your Azure AD application client ID
+   - `client_secret`: Your Azure AD application client secret
+
+3. Run the script to verify the connection
+
+If successful, it will print out the title of your SharePoint site. If there's an error, it will print the error message.
+
+If you prefer using the Microsoft Graph API instead, here's an alternative approach:
+
+```python
+import requests
+
+def test_graph_connection(tenant_id, client_id, client_secret, site_url):
+    try:
+        # Get an access token
+        token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+        token_data = {
+            'grant_type': 'client_credentials',
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'scope': 'https://graph.microsoft.com/.default'
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        token_response.raise_for_status()
+        access_token = token_response.json().get('access_token')
+        
+        # Extract the hostname and site path from the site URL
+        # Example: https://contoso.sharepoint.com/sites/teamsite
+        # site_hostname: contoso.sharepoint.com
+        # site_path: /sites/teamsite
+        site_parts = site_url.split('://', 1)[1].split('/', 1)
+        site_hostname = site_parts[0]
+        site_path = '/' + site_parts[1] if len(site_parts) > 1 else ''
+        
+        # Get the site information
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json'
+        }
+        
+        # Using the sites API to get site by hostname and path
+        graph_url = f"https://graph.microsoft.com/v1.0/sites/{site_hostname}:{site_path}"
+        site_response = requests.get(graph_url, headers=headers)
+        site_response.raise_for_status()
+        
+        site_info = site_response.json()
+        print(f"Connection successful! Site title: {site_info.get('displayName')}")
+        print(f"Site ID: {site_info.get('id')}")
+        return True
+        
+    except Exception as e:
+        print(f"Error connecting to SharePoint via Graph API: {str(e)}")
+        return False
+
+# Replace with your actual values
+tenant_id = "your-tenant-id"  # This is typically your directory ID from Azure
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+site_url = "https://yourtenant.sharepoint.com/sites/yoursite"
+
+test_graph_connection(tenant_id, client_id, client_secret, site_url)
+```
+
+For this approach, you'll need to:
+- Include your tenant ID (directory ID from Azure AD)
+- Ensure your application has appropriate Microsoft Graph API permissions
+
+Let me know if you run into any issues with either approach!​​​​​​​​​​​​​​​​
+
+
+
+
+
+
+
+I'll show you how to test a connection from Python to SharePoint using client credentials (client ID, client secret) and verify it by printing a site title.
+
+Here's a complete example that uses the Office 365 REST Python Client library to authenticate and retrieve the site title:
+
+```python
+import requests
+from office365.runtime.auth.client_credential import ClientCredential
+from office365.sharepoint.client_context import ClientContext
+
+def test_sharepoint_connection(site_url, client_id, client_secret):
+    try:
+        # Create a client credentials object
+        credentials = ClientCredential(client_id, client_secret)
+        
+        # Create a client context
+        ctx = ClientContext(site_url).with_credentials(credentials)
+        
+        # Get the web (site) information and load the title property
+        web = ctx.web
+        ctx.load(web, ["Title"])
+        ctx.execute_query()
+        
+        # Print the site title
+        print(f"Connection successful! Site title: {web.properties['Title']}")
+        return True
+    
+    except Exception as e:
+        print(f"Error connecting to SharePoint: {str(e)}")
+        return False
+
+# Replace with your actual values
+site_url = "https://yourtenant.sharepoint.com/sites/yoursite"
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+
+# Test the connection
+test_sharepoint_connection(site_url, client_id, client_secret)
+```
+
+To use this code:
+
+1. Install the required package:
+   ```
+   pip install Office365-REST-Python-Client
+   ```
+
+2. Replace the placeholder values with your actual SharePoint information:
+   - `site_url`: Your complete SharePoint site URL
+   - `client_id`: Your Azure AD application client ID
+   - `client_secret`: Your Azure AD application client secret
+
+3. Run the script to verify the connection
+
+If successful, it will print out the title of your SharePoint site. If there's an error, it will print the error message.
+
+If you prefer using the Microsoft Graph API instead, here's an alternative approach:
+
+```python
+import requests
+
+def test_graph_connection(tenant_id, client_id, client_secret, site_url):
+    try:
+        # Get an access token
+        token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+        token_data = {
+            'grant_type': 'client_credentials',
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'scope': 'https://graph.microsoft.com/.default'
+        }
+        
+        token_response = requests.post(token_url, data=token_data)
+        token_response.raise_for_status()
+        access_token = token_response.json().get('access_token')
+        
+        # Extract the hostname and site path from the site URL
+        # Example: https://contoso.sharepoint.com/sites/teamsite
+        # site_hostname: contoso.sharepoint.com
+        # site_path: /sites/teamsite
+        site_parts = site_url.split('://', 1)[1].split('/', 1)
+        site_hostname = site_parts[0]
+        site_path = '/' + site_parts[1] if len(site_parts) > 1 else ''
+        
+        # Get the site information
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json'
+        }
+        
+        # Using the sites API to get site by hostname and path
+        graph_url = f"https://graph.microsoft.com/v1.0/sites/{site_hostname}:{site_path}"
+        site_response = requests.get(graph_url, headers=headers)
+        site_response.raise_for_status()
+        
+        site_info = site_response.json()
+        print(f"Connection successful! Site title: {site_info.get('displayName')}")
+        print(f"Site ID: {site_info.get('id')}")
+        return True
+        
+    except Exception as e:
+        print(f"Error connecting to SharePoint via Graph API: {str(e)}")
+        return False
+
+# Replace with your actual values
+tenant_id = "your-tenant-id"  # This is typically your directory ID from Azure
+client_id = "your-client-id"
+client_secret = "your-client-secret"
+site_url = "https://yourtenant.sharepoint.com/sites/yoursite"
+
+test_graph_connection(tenant_id, client_id, client_secret, site_url)
+```
+
+For this approach, you'll need to:
+- Include your tenant ID (directory ID from Azure AD)
+- Ensure your application has appropriate Microsoft Graph API permissions
+
+Let me know if you run into any issues with either approach!​​​​​​​​​​​​​​​​
