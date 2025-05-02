@@ -1,0 +1,59 @@
+%macro wf_get_token(client_id=, client_secret=, tenant_id=);
+
+filename tokenresp TEMP;
+
+proc http
+  url="https://login.microsoftonline.com/&tenant_id./oauth2/v2.0/token"
+  method="POST"
+  out=tokenresp
+  headers "Content-Type"="application/x-www-form-urlencoded"
+  body="grant_type=client_credentials
+        &client_id=&client_id.
+        &client_secret=&client_secret.
+        &scope=https%3A%2F%2Fgraph.microsoft.com%2F.default";
+
+libname tokjson json fileref=tokenresp;
+
+data _null_;
+  set tokjson.root;
+  call symputx('access_token', access_token, 'G');
+run;
+
+%put &=access_token;
+
+%mend;
+
+
+
+%macro get_site_id(host=, path=);
+
+filename siteout TEMP;
+
+proc http
+  url="https://graph.microsoft.com/v1.0/sites/&host.:%2F&path."
+  method="GET"
+  oauth_bearer="&access_token"
+  out=siteout;
+
+libname sitejson json fileref=siteout;
+
+data _null_;
+  set sitejson.root;
+  call symputx('site_id', id, 'G');
+run;
+
+%put &=site_id;
+
+%mend;
+
+%wf_get_token(
+  client_id=YOUR_CLIENT_ID,
+  client_secret=YOUR_CLIENT_SECRET,
+  tenant_id=YOUR_TENANT_ID
+);
+
+%get_site_id(
+  host=site.sharepoint.com,
+  path=sites/1111-2222
+);
+
