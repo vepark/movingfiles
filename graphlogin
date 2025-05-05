@@ -1,0 +1,35 @@
+import requests
+
+# === Credentials from Azure App Registration ===
+tenant_id = "YOUR_TENANT_ID"
+client_id = "YOUR_CLIENT_ID"
+client_secret = "YOUR_CLIENT_SECRET"
+
+# === Auth endpoint to get Microsoft Graph token ===
+token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+
+token_data = {
+    'grant_type': 'client_credentials',
+    'client_id': client_id,
+    'client_secret': client_secret,
+    'scope': 'https://graph.microsoft.com/.default'
+}
+
+# === Get Access Token ===
+response = requests.post(token_url, data=token_data)
+response.raise_for_status()
+access_token = response.json().get("access_token")
+
+# === SharePoint Site Info via Graph API ===
+site_url = "https://graph.microsoft.com/v1.0/sites/wellsfargoqa.sharepoint.com:/sites/1100-1084"
+
+headers = {
+    "Authorization": f"Bearer {access_token}"
+}
+
+site_response = requests.get(site_url, headers=headers)
+site_response.raise_for_status()
+
+# === Print Title ===
+site_data = site_response.json()
+print("Site Title:", site_data["name"])
