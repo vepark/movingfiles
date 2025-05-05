@@ -1,1 +1,53 @@
+import requests
 
+# === Your credentials and token logic ===
+tenant_id = "YOUR_TENANT_ID"
+client_id = "YOUR_CLIENT_ID"
+client_secret = "YOUR_CLIENT_SECRET"
+site_path = "/sites/1100-1084"
+site_host = "wellsfargoqa.sharepoint.com"
+
+# === 1. Get the access token ===
+token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+token_data = {
+    'grant_type': 'client_credentials',
+    'client_id': client_id,
+    'client_secret': client_secret,
+    'scope': 'https://graph.microsoft.com/.default'
+}
+
+token_response = requests.post(token_url, data=token_data)
+token_response.raise_for_status()
+access_token = token_response.json()["access_token"]
+headers = {"Authorization": f"Bearer {access_token}"}
+
+# === 2. Get the site ID ===
+site_url = f"https://graph.microsoft.com/v1.0/sites/{site_host}:{site_path}"
+site_response = requests.get(site_url, headers=headers)
+site_response.raise_for_status()
+site_id = site_response.json()["id"]
+
+# === 3. Get document library (drive) ID ===
+drive_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives"
+drive_response = requests.get(drive_url, headers=headers)
+drive_response.raise_for_status()
+drives = drive_response.json()["value"]
+
+# Choose first library (e.g., "Documents")
+drive_id = drives[0]["id"]
+drive_name = drives[0]["name"]
+print(f"Uploading to document library: {drive_name}")
+
+# === 4. Upload file to the root folder of the drive ===
+file_name = "Sample_Upload.docx"
+file_path = "C:/path/to/your/local/Sample_Upload.docx"  # Replace with your actual local path
+
+upload_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_name}:/content"
+with open(file_path, "rb") as f:
+    upload_response = requests.put(upload_url, headers=headers, data=f)
+    upload_response.raise_for_status()
+    uploaded_file = upload_response.json()
+
+print("✅ File uploaded successfully!")
+print("File Name:", uploaded_file["name"])
+print("Web URL:", uploaded_file["webUrl"])
