@@ -1,0 +1,17 @@
+data want;
+    set your_dataset_name;  /* replace with your actual dataset */
+
+    length email $100 casenr $20 name_wo_ext $200;
+
+    /* Step 1: remove extension */
+    name_wo_ext = prxchange('s/\.[^.]+$//', -1, filename);
+
+    /* Step 2: locate first digit in the filename */
+    first_digit_pos = findc(name_wo_ext, '0123456789', 'ka');
+
+    /* Step 3: extract email and case number */
+    if first_digit_pos > 0 then do;
+        email  = substr(name_wo_ext, 1, first_digit_pos - 1);
+        casenr = substr(name_wo_ext, first_digit_pos);
+    end;
+run;
