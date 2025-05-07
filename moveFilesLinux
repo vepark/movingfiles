@@ -1,0 +1,17 @@
+options noxwait noxsync;
+
+/* Step 1: Generate folder name like 05072025_1125am */
+data _null_;
+    dt = datetime();
+    date_part = put(datepart(dt), mmddyyn8.);
+    raw_time  = put(timepart(dt), timeampm7.);
+    time_part = lowcase(compress(raw_time, ':'));
+    call symputx('final_stamp', cats(date_part, '_', time_part));
+run;
+
+/* Step 2: Use X command to make folder and move files */
+%let source=/your/source/path;
+%let target=/your/target/path/&final_stamp.;
+
+x "mkdir -p &target.";
+x "mv &source./* &target.";
