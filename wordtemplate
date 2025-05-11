@@ -2,85 +2,101 @@ import pandas as pd
 from docx import Document
 import os
 
-# Load Excel data (preserve leading zeros in CaseID)
-df = pd.read_excel("sample_case_data.xlsx", dtype={"CaseID": str})
+# Load Excel data
+df = pd.read_excel("/abc/sample.xlsx", dtype={"CaseID": str})
 
-# Word template and output folder
-template_path = "research_template.docx"
-output_dir = "GeneratedDocs"
+# Word template path
+template_path = "/abc/sample1.docx"
+
+# Output folder
+output_dir = "/houtput/"
 os.makedirs(output_dir, exist_ok=True)
 
-# Label to Excel column map
+# Label-to-column mapping for known left-labels and placeholders
 label_to_column = {
-    # No-section labels
+    # Page 1
+    "Case ID:": "CaseID",
+    "Case Owner:": "CaseOwner",
+    "Customer (Complainant) Name:": "CustomerName",
+    "Customer Number (ECN):": "ECN",
     "Original Note Summary:": "OriginalNote",
     "Updated Note Summary:": "UpdatedNote",
     "Response Bullet List:": "ResponseBulletList",
 
-    # Case Info
-    ("Case Information", "Case ID:"): "CaseID",
-    ("Case Information", "Case Owner:"): "CaseOwner",
-    ("Case Information", "Customer (Complainant) Name:"): "CustomerName",
-    ("Case Information", "Customer Number (ECN):"): "ECN",
-
-    # Primary Complaint
+    # Page 2 – Sectioned labels
     ("Primary Complaint", "Enter Customer Problem and Description"): "Primary_Description",
     ("Primary Complaint", "List details from the complaint"): "Primary_Details",
     ("Primary Complaint", "Cite documents, tools, systems"): "Primary_Citations",
     ("Primary Complaint", "Summarize findings of the research"): "Primary_Summary",
 
-    # Secondary Complaint
     ("Secondary Complaint", "Enter Customer Problem and Description"): "Secondary_Description",
     ("Secondary Complaint", "List details from the complaint"): "Secondary_Details",
     ("Secondary Complaint", "Cite documents, tools, systems"): "Secondary_Citations",
     ("Secondary Complaint", "Summarize findings of the research"): "Secondary_Summary",
 
-    # Additional Complaint
-    ("Additional Complaint", "Enter Customer Problem and Description"): "Additional_Description",
-    ("Additional Complaint", "List details from the complaint"): "Additional_Details",
-    ("Additional Complaint", "Cite documents, tools, systems"): "Additional_Citations",
-    ("Additional Complaint", "Summarize findings of the research"): "Additional_Summary",
+    ("Additional Complaint(s)", "Enter Customer Problem and Description"): "Additional_Description",
+    ("Additional Complaint(s)", "List details from the complaint"): "Additional_Details",
+    ("Additional Complaint(s)", "Cite documents, tools, systems"): "Additional_Citations",
+    ("Additional Complaint(s)", "Summarize findings of the research"): "Additional_Summary",
+
+    # Page 3
+    "Enter reason for relief": "Relief_Reason",
+    "Note Resolution:": "Resolution_Note",
+
+    # Former dropdowns now using text placeholders
+    "WF or TP Error": "WFError",
+    "Relief Type": "ReliefType",
+    "Related Cases or Recontact": "RelatedCases"
 }
 
-# Function to fill right-side cells based on section and label or label only
+# Function to fill tables
 def fill_table_right_cell(table, label_to_value, label_to_column):
-    section_title = table.rows[0].cells[0].text.strip()
+    try:
+        section_title = table.rows[0].cells[0].text.strip()
+    except:
+        section_title = ""
 
     for row in table.rows:
         for i, cell in enumerate(row.cells):
             label = cell.text.strip()
-
-            # Match full (section, label) key first, then plain label
             key = (section_title, label)
             if key in label_to_column:
                 col = label_to_column[key]
             elif label in label_to_column:
                 col = label_to_column[label]
             else:
-                continue  # skip unmatched
+                continue
 
             value = label_to_value.get(col, "")
             if i + 1 < len(row.cells):
                 row.cells[i + 1].text = str(value)
-                print(f"Filled: [{section_title}] '{label}' → '{value}'")
+                print(f"Filled: [{section_title}] '{label}' -> '{value}'")
 
-# Main loop to process each row in Excel
+# Function to replace <<Placeholders>> anywhere in text
+def replace_placeholders(doc, label_to_value):
+    for para in doc.paragraphs:
+        for key, val in label_to_value.items():
+            placeholder = f"<<{key}>>"
+            if placeholder in para.text:
+                para.text = para.text.replace(placeholder, str(val))
+
+# Main loop for document creation
 for idx, row in df.iterrows():
     doc = Document(template_path)
 
-    # Build dictionary of all Excel values for this row
     label_to_value = {
         col_key: str(row[col_val]).strip() if pd.notnull(row[col_val]) else ""
         for col_key, col_val in label_to_column.items()
     }
 
-    # Fill all tables
     for table in doc.tables:
         fill_table_right_cell(table, label_to_value, label_to_column)
 
-    # Save document with padded CaseID
+    replace_placeholders(doc, label_to_value)
+
     case_id = str(row["CaseID"]).zfill(16)
     output_path = os.path.join(output_dir, f"Case_{case_id}.docx")
     doc.save(output_path)
+    print(f"[SAVED] {output_path}")
 
-print("All documents generated successfully.")
+print("\nAll documents created successfully.")
