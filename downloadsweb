@@ -1,0 +1,97 @@
+import os
+import time
+import shutil
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+
+# ---------- CONFIGURATION ----------
+EXCEL_FILE = 'case_ids.xlsx'
+CASE_ID_COLUMN = 'CaseID'
+PORTAL_URL = 'https://<YOUR_CASE_PORTAL_URL>'
+DOWNLOAD_DIR = os.path.join(os.getcwd(), 'downloads')
+TEMP_FILENAME = 'ReceivedCaseDetails.pdf'
+CHROME_DRIVER_PATH = 'chromedriver'  # Adjust path if needed
+WAIT_TIMEOUT = 30
+
+# ---------- SETUP DOWNLOAD OPTIONS ----------
+options = Options()
+prefs = {
+    "download.default_directory": DOWNLOAD_DIR,
+    "download.prompt_for_download": False,
+    "plugins.always_open_pdf_externally": True  # To download PDF directly
+}
+options.add_experimental_option("prefs", prefs)
+
+driver = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH, options=options)
+driver.maximize_window()
+driver.get(PORTAL_URL)
+
+# ---------- WAIT FOR SSO LOGIN ----------
+print("Please log in via SSO if needed...")
+time.sleep(15)  # Increase if login takes longer
+
+# ---------- READ CASE LIST ----------
+df = pd.read_excel(EXCEL_FILE)
+case_list = df[CASE_ID_COLUMN].astype(str).tolist()
+
+for case_id in case_list:
+    print(f"\nProcessing Case ID: {case_id}")
+
+    try:
+        # ----------- STEP 1: SEARCH CASE -----------
+        case_input = driver.find_element(By.ID, "caseIdInputFieldID")  # Update ID
+        search_button = driver.find_element(By.ID, "searchButtonID")  # Update ID
+
+        case_input.clear()
+        case_input.send_keys(case_id)
+        search_button.click()
+        time.sleep(3)
+
+        # ----------- STEP 2: EXPAND DETAILS -----------
+        expand_button = driver.find_element(By.XPATH, "//button[contains(@class, 'expand-row')]")  # Adjust class
+        expand_button.click()
+        time.sleep(2)
+
+        # ----------- STEP 3: VIEW CASE -----------
+        view_case_link = driver.find_element(By.LINK_TEXT, "View Case")
+        view_case_link.click()
+        time.sleep(5)
+
+        # ----------- STEP 4: DOWNLOAD ATTACHMENT -----------
+        attachment_link = driver.find_element(By.PARTIAL_LINK_TEXT, TEMP_FILENAME)
+        attachment_link.click()
+        print("Downloading attachment...")
+        time.sleep(2)
+
+        # ----------- STEP 5: WAIT & MOVE -----------
+        downloaded = False
+        for _ in range(WAIT_TIMEOUT):
+            file_path = os.path.join(DOWNLOAD_DIR, TEMP_FILENAME)
+            if os.path.exists(file_path):
+                downloaded = True
+                break
+            time.sleep(1)
+
+        if downloaded:
+            # Create case-specific folder
+            case_folder = os.path.join(DOWNLOAD_DIR, case_id)
+            os.makedirs(case_folder, exist_ok=True)
+            dest_path = os.path.join(case_folder, TEMP_FILENAME)
+            shutil.move(file_path, dest_path)
+            print(f"Saved to {dest_path}")
+        else:
+            print("Download failed or timeout.")
+
+        # Optional: go back to search page
+        driver.back()
+        time.sleep(2)
+        driver.back()
+        time.sleep(2)
+
+    except Exception as e:
+        print(f"Error processing {case_id}: {e}")
+
+driver.quit()
+print("\nDone with all cases.")
