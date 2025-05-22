@@ -1,3 +1,4 @@
+
 import os
 import time
 import shutil
@@ -5,13 +6,14 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 
 # ---------- CONFIGURATION ----------
-EXCEL_FILE = 'case_ids.xlsx'
-CASE_ID_COLUMN = 'CaseID'
-PORTAL_URL = 'https://<YOUR_CASE_PORTAL_URL>'
-DOWNLOAD_DIR = os.path.join(os.getcwd(), 'downloads')
-CHROME_DRIVER_PATH = 'chromedriver'  # Adjust as needed
+EXCEL_FILE = ''
+CASE_ID_COLUMN = 'Case nr'
+PORTAL_URL = ''  # Replace with your actual search URL
+DOWNLOAD_DIR = ''
+CHROME_DRIVER_PATH = ''
 WAIT_TIMEOUT = 30
 
 # ---------- SETUP DOWNLOAD OPTIONS ----------
@@ -23,48 +25,50 @@ prefs = {
 }
 options.add_experimental_option("prefs", prefs)
 
-driver = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH, options=options)
+service = Service(CHROME_DRIVER_PATH)
+driver = webdriver.Chrome(service=service, options=options)
 driver.maximize_window()
 driver.get(PORTAL_URL)
 
 # ---------- WAIT FOR SSO LOGIN ----------
 print("Please log in via SSO if needed...")
-time.sleep(15)  # Increase if login takes longer
+time.sleep(15)
 
 # ---------- READ CASE LIST ----------
-df = pd.read_excel(EXCEL_FILE)
+df = pd.read_excel(EXCEL_FILE, dtype={CASE_ID_COLUMN: str})
 case_list = df[CASE_ID_COLUMN].astype(str).tolist()
 
 for case_id in case_list:
     print(f"\nProcessing Case ID: {case_id}")
 
     try:
-        # ----------- STEP 1: SEARCH CASE -----------
-        case_input = driver.find_element(By.ID, "caseIdInputFieldID")  # Update ID
-        search_button = driver.find_element(By.ID, "searchButtonID")  # Update ID
+        # STEP 1: SEARCH CASE
+        case_input = driver.find_element(By.XPATH, "//label[contains(text(),'Case ID Number')]/following::input[1]")
+        search_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Search')]")
 
         case_input.clear()
         case_input.send_keys(case_id)
         search_button.click()
         time.sleep(3)
 
-        # ----------- STEP 2: EXPAND DETAILS -----------
-        expand_button = driver.find_element(By.XPATH, "//button[contains(@class, 'expand-row')]")  # Update class
+        # STEP 2: EXPAND DETAILS
+        expand_button = driver.find_element(By.XPATH, "//button[contains(@class, 'expand-row')]")
         expand_button.click()
         time.sleep(2)
 
-        # ----------- STEP 3: VIEW CASE -----------
+        # STEP 3: VIEW CASE
         view_case_link = driver.find_element(By.LINK_TEXT, "View Case")
         view_case_link.click()
         time.sleep(5)
 
-        # ----------- STEP 4: DOWNLOAD ALL ATTACHMENTS -----------
-        attachment_links = driver.find_elements(By.CSS_SELECTOR, "a[href$='.pdf'], a[href$='.xlsx'], a[href$='.docx'], a[href$='.xls'], a[href$='.doc']")
+        # STEP 4: DOWNLOAD ALL ATTACHMENTS
+        attachment_links = driver.find_elements(By.CSS_SELECTOR, 
+            "a[href$='.pdf'], a[href$='.docx'], a[href$='.doc'], a[href$='.xlsx'], a[href$='.xls']")
 
         if not attachment_links:
             print("No attachments found.")
         else:
-            print(f"Found {len(attachment_links)} attachments.")
+            print(f"Found {len(attachment_links)} attachment(s).")
             case_folder = os.path.join(DOWNLOAD_DIR, case_id)
             os.makedirs(case_folder, exist_ok=True)
 
@@ -73,8 +77,7 @@ for case_id in case_list:
                 print(f"Downloading: {file_name}")
                 before_files = set(os.listdir(DOWNLOAD_DIR))
                 link.click()
-                
-                # Wait for file download
+
                 downloaded = False
                 for _ in range(WAIT_TIMEOUT):
                     after_files = set(os.listdir(DOWNLOAD_DIR))
@@ -85,7 +88,6 @@ for case_id in case_list:
                         break
                     time.sleep(1)
 
-                # Move file to case folder
                 if downloaded:
                     src = os.path.join(DOWNLOAD_DIR, downloaded_file)
                     dst = os.path.join(case_folder, downloaded_file)
@@ -94,7 +96,7 @@ for case_id in case_list:
                 else:
                     print(f"Timeout waiting for download: {file_name}")
 
-        # Optional: go back to search page
+        # Go back to search page
         driver.back()
         time.sleep(2)
         driver.back()
