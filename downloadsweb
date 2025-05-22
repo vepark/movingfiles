@@ -7,9 +7,12 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 
-# ---------- SETUP DOWNLOAD OPTIONS ----------
+
+# -------- SETUP CHROME DRIVER --------
 options = Options()
 prefs = {
     "download.default_directory": DOWNLOAD_DIR,
@@ -23,51 +26,47 @@ driver = webdriver.Chrome(service=service, options=options)
 driver.maximize_window()
 driver.get(PORTAL_URL)
 
-# ---------- WAIT FOR SSO LOGIN ----------
-print("Please log in via SSO if needed...")
-time.sleep(15)
+# -------- SSO LOGIN --------
+print("Waiting for SSO login...")
+time.sleep(20)  # Give user time to log in manually
 
-# ---------- READ CASE LIST ----------
+# -------- READ CASE LIST --------
 df = pd.read_excel(EXCEL_FILE, dtype={CASE_ID_COLUMN: str})
-case_list = df[CASE_ID_COLUMN].astype(str).tolist()
+case_list = df[CASE_ID_COLUMN].dropna().astype(str).tolist()
 
 for case_id in case_list:
-    print(f"\nProcessing Case ID: {case_id}")
-
+    print(f"Processing case: {case_id}")
     try:
-        # STEP 1: SEARCH CASE
-        case_input = driver.find_element(By.ID, "774c51e8")  # From input tag
-        search_button = driver.find_element(By.XPATH, "//button[contains(text(),'Search')]")
-
+        # STEP 1: Enter case number and click search
+        case_input = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.ID, "774c51e8")))
         case_input.clear()
         case_input.send_keys(case_id)
-        search_button.click()
+
+        search_btn = driver.find_element(By.XPATH, "//button[contains(text(),'Search')]")
+        search_btn.click()
         time.sleep(3)
 
-        # STEP 2: EXPAND CASE
-        expand_button = driver.find_element(By.XPATH, "//span[@data-ctl='expandCollapse']")
-        expand_button.click()
+        # STEP 2: Expand result row
+        expand_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//span[@data-ctl='expandCollapse']")))
+        expand_btn.click()
         time.sleep(2)
 
-        # STEP 3: VIEW CASE
-        view_case_button = driver.find_element(By.XPATH, "//button[contains(text(),'View Case')]")
-        view_case_button.click()
+        # STEP 3: Click View Case
+        view_case_btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'View Case')]")))
+        view_case_btn.click()
         time.sleep(5)
 
-        # STEP 4: DOWNLOAD ATTACHMENTS
-        attachment_links = driver.find_elements(By.CSS_SELECTOR,
-            "a[href$='.pdf'], a[href$='.docx'], a[href$='.doc'], a[href$='.xlsx'], a[href$='.xls']")
-
-        if not attachment_links:
+        # STEP 4: Download all attachments
+        links = driver.find_elements(By.CSS_SELECTOR, "a[href$='.pdf'], a[href$='.xlsx'], a[href$='.xls'], a[href$='.docx'], a[href$='.doc']")
+        if not links:
             print("No attachments found.")
         else:
-            print(f"Found {len(attachment_links)} attachment(s).")
+            print(f"Found {len(links)} attachment(s).")
             case_folder = os.path.join(DOWNLOAD_DIR, case_id)
             os.makedirs(case_folder, exist_ok=True)
 
-            for link in attachment_links:
-                file_name = link.text.strip()
-                print(f"Downloading: {file_name}")
+            for link in links:
+                filename = link.text.strip()
                 before_files = set(os.listdir(DOWNLOAD_DIR))
                 link.click()
 
@@ -77,26 +76,23 @@ for case_id in case_list:
                     new_files = after_files - before_files
                     if new_files:
                         downloaded_file = list(new_files)[0]
+                        src = os.path.join(DOWNLOAD_DIR, downloaded_file)
+                        dst = os.path.join(case_folder, downloaded_file)
+                        shutil.move(src, dst)
+                        print(f"Downloaded: {downloaded_file}")
                         downloaded = True
                         break
                     time.sleep(1)
+                if not downloaded:
+                    print(f"Timeout waiting for: {filename}")
 
-                if downloaded:
-                    src = os.path.join(DOWNLOAD_DIR, downloaded_file)
-                    dst = os.path.join(case_folder, downloaded_file)
-                    shutil.move(src, dst)
-                    print(f"Saved to {dst}")
-                else:
-                    print(f"Timeout waiting for download: {file_name}")
-
-        # Return to Search Page
         driver.back()
         time.sleep(2)
         driver.back()
         time.sleep(2)
 
     except Exception as e:
-        print(f"Error processing {case_id}: {e}")
+        print(f"Error processing case {case_id}: {e}")
 
 driver.quit()
-print("\nDone with all cases.")
+print("Done with all cases.")
