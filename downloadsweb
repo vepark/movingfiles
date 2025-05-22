@@ -8,13 +8,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-# ---------- CONFIGURATION ----------
-EXCEL_FILE = ''
-CASE_ID_COLUMN = 'Case nr'
-PORTAL_URL = ''  # Replace with your actual search URL
-DOWNLOAD_DIR = ''
-CHROME_DRIVER_PATH = ''
-WAIT_TIMEOUT = 30
 
 # ---------- SETUP DOWNLOAD OPTIONS ----------
 options = Options()
@@ -43,26 +36,26 @@ for case_id in case_list:
 
     try:
         # STEP 1: SEARCH CASE
-        case_input = driver.find_element(By.XPATH, "//label[contains(text(),'Case ID Number')]/following::input[1]")
-        search_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Search')]")
+        case_input = driver.find_element(By.ID, "774c51e8")  # From input tag
+        search_button = driver.find_element(By.XPATH, "//button[contains(text(),'Search')]")
 
         case_input.clear()
         case_input.send_keys(case_id)
         search_button.click()
         time.sleep(3)
 
-        # STEP 2: EXPAND DETAILS
-        expand_button = driver.find_element(By.XPATH, "//button[contains(@class, 'expand-row')]")
+        # STEP 2: EXPAND CASE
+        expand_button = driver.find_element(By.XPATH, "//span[@data-ctl='expandCollapse']")
         expand_button.click()
         time.sleep(2)
 
         # STEP 3: VIEW CASE
-        view_case_link = driver.find_element(By.LINK_TEXT, "View Case")
-        view_case_link.click()
+        view_case_button = driver.find_element(By.XPATH, "//button[contains(text(),'View Case')]")
+        view_case_button.click()
         time.sleep(5)
 
-        # STEP 4: DOWNLOAD ALL ATTACHMENTS
-        attachment_links = driver.find_elements(By.CSS_SELECTOR, 
+        # STEP 4: DOWNLOAD ATTACHMENTS
+        attachment_links = driver.find_elements(By.CSS_SELECTOR,
             "a[href$='.pdf'], a[href$='.docx'], a[href$='.doc'], a[href$='.xlsx'], a[href$='.xls']")
 
         if not attachment_links:
@@ -96,7 +89,7 @@ for case_id in case_list:
                 else:
                     print(f"Timeout waiting for download: {file_name}")
 
-        # Go back to search page
+        # Return to Search Page
         driver.back()
         time.sleep(2)
         driver.back()
