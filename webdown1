@@ -1,0 +1,344 @@
+import os
+import time
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import urllib.parse
+import requests
+from pathlib import Path
+
+class DemoCaseAutomation:
+    def __init__(self, download_folder="downloads", headless=False):
+        """
+        Initialize the automation class
+        
+        Args:
+            download_folder (str): Base folder for downloads
+            headless (bool): Run browser in headless mode
+        """
+        self.download_folder = Path(download_folder)
+        self.download_folder.mkdir(exist_ok=True)
+        self.driver = None
+        self.wait = None
+        self.headless = headless
+        
+    def setup_driver(self):
+        """Setup Chrome driver with appropriate options"""
+        chrome_options = Options()
+        
+        # Set download preferences
+        prefs = {
+            "download.default_directory": str(self.download_folder.absolute()),
+            "download.prompt_for_download": False,
+            "download.directory_upgrade": True,
+            "safebrowsing.enabled": True
+        }
+        chrome_options.add_experimental_option("prefs", prefs)
+        
+        if self.headless:
+            chrome_options.add_argument("--headless")
+        
+        # Additional options for stability
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        
+        # Initialize driver
+        self.driver = webdriver.Chrome(options=chrome_options)
+        self.wait = WebDriverWait(self.driver, 20)
+        
+    def login_sso(self, login_url):
+        """
+        Handle SSO login - this will need to be customized based on your SSO provider
+        
+        Args:
+            login_url (str): The SSO login URL
+        """
+        print("Navigating to SSO login...")
+        self.driver.get(login_url)
+        
+        # Wait for SSO login to complete
+        # You may need to customize this based on your SSO provider
+        print("Please complete SSO login manually...")
+        
+        # Wait for user to complete login and reach the main application
+        try:
+            # Wait for the main application to load (looking for Case Search)
+            self.wait.until(
+                EC.presence_of_element_located((By.XPATH, "//*[@id='menu-1748025697888']/li[2]/a/span/span"))
+            )
+            print("SSO login successful - Main application loaded")
+        except TimeoutException:
+            print("Timeout waiting for main application. Please ensure login is complete.")
+            input("Press Enter after completing login...")
+    
+    def navigate_to_case_search(self):
+        """Navigate to the Case Search functionality"""
+        try:
+            # Click on Case Search link using provided XPath
+            case_search_link = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//*[@id='menu-1748025697888']/li[2]/a/span/span"))
+            )
+            case_search_link.click()
+            print("Navigated to Case Search")
+            time.sleep(2)
+        except TimeoutException:
+            print("Could not find Case Search link")
+            raise
+    
+    def search_case(self, case_number):
+        """
+        Search for a specific case number
+        
+        Args:
+            case_number (str): The case number to search for
+        """
+        try:
+            # Wait for the case ID input field using provided XPath
+            case_id_input = self.wait.until(
+                EC.presence_of_element_located((By.XPATH, "//*[@id='774c51e8']"))
+            )
+            
+            # Clear and enter case number
+            case_id_input.clear()
+            case_id_input.send_keys(case_number)
+            
+            # Click search button using provided XPath
+            search_button = self.driver.find_element(By.XPATH, "//*[@id='EXPAND-OUTERFRAME']/div[2]/div/div[3]/span/button")
+            search_button.click()
+            
+            print(f"Searching for case: {case_number}")
+            time.sleep(3)
+            
+        except (TimeoutException, NoSuchElementException) as e:
+            print(f"Error searching for case {case_number}: {str(e)}")
+            raise
+    
+    def open_case_details(self):
+        """Click the arrow to open case details"""
+        try:
+            # Look for the arrow button using provided XPath
+            expand_button = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//*[@id='$PpyWorkPage$pCaseSearch$pSearchResults$l1']/td[1]/span"))
+            )
+            expand_button.click()
+            print("Opened case details")
+            time.sleep(2)
+            
+        except TimeoutException:
+            # Alternative: look for "View Case" button using provided XPath
+            try:
+                view_case_button = self.wait.until(
+                    EC.element_to_be_clickable((By.XPATH, "//*[@id='RULE_KEY']/div/div/div/div[1]/span/button"))
+                )
+                view_case_button.click()
+                print("Clicked View Case button")
+                time.sleep(2)
+            except TimeoutException:
+                print("Could not find expand button or View Case button")
+                raise
+    
+    def download_attachments(self, case_number):
+        """
+        Download all attachments for the current case
+        
+        Args:
+            case_number (str): The case number for folder naming
+        """
+        # Create case-specific folder
+        case_folder = self.download_folder / case_number
+        case_folder.mkdir(exist_ok=True)
+        
+        try:
+            # Wait for attachments section to be visible using provided XPath
+            attachments_section = self.wait.until(
+                EC.presence_of_element_located((By.XPATH, "//*[@id='EXPAND-OUTERFRAME']/div[2]"))
+            )
+            
+            # Find all download links/buttons - looking for common patterns in the attachments section
+            download_links = self.driver.find_elements(
+                By.XPATH, 
+                "//*[@id='EXPAND-OUTERFRAME']/div[2]//a[contains(@href, '.pdf') or contains(@href, '.xlsx') or contains(@href, '.docx')] | "
+                "//*[@id='EXPAND-OUTERFRAME']/div[2]//button[contains(@onclick, 'download')] | "
+                "//*[@id='EXPAND-OUTERFRAME']/div[2]//a[contains(text(), '.pdf') or contains(text(), '.xlsx') or contains(text(), '.docx')] | "
+                "//*[@id='EXPAND-OUTERFRAME']/div[2]//span[contains(text(), '.pdf') or contains(text(), '.xlsx') or contains(text(), '.docx')]"
+            )
+            
+            if not download_links:
+                print(f"No attachments found for case {case_number}")
+                return
+            
+            print(f"Found {len(download_links)} attachments for case {case_number}")
+            
+            for i, link in enumerate(download_links):
+                try:
+                    # Get filename from link text or href
+                    filename = self.extract_filename(link)
+                    print(f"Downloading: {filename}")
+                    
+                    # Click the download link
+                    self.driver.execute_script("arguments[0].click();", link)
+                    time.sleep(2)
+                    
+                    # Wait for download to complete and move to case folder
+                    self.wait_and_move_download(filename, case_folder)
+                    
+                except Exception as e:
+                    print(f"Error downloading attachment {i+1}: {str(e)}")
+                    continue
+                    
+        except TimeoutException:
+            print(f"No attachments section found for case {case_number}")
+    
+    def extract_filename(self, element):
+        """Extract filename from download element"""
+        # Try to get filename from various attributes
+        filename = element.get_attribute("download")
+        if filename:
+            return filename
+            
+        href = element.get_attribute("href")
+        if href:
+            # Extract filename from URL
+            parsed_url = urllib.parse.urlparse(href)
+            filename = os.path.basename(parsed_url.path)
+            if filename:
+                return filename
+        
+        # Get from element text
+        text = element.text.strip()
+        if text and ('.' in text):
+            return text
+            
+        return f"attachment_{int(time.time())}"
+    
+    def wait_and_move_download(self, filename, target_folder, timeout=30):
+        """Wait for download to complete and move to target folder"""
+        download_path = self.download_folder / filename
+        target_path = target_folder / filename
+        
+        # Wait for file to appear in downloads
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if download_path.exists():
+                # Wait a bit more to ensure download is complete
+                time.sleep(2)
+                
+                # Move file to target folder
+                if target_path.exists():
+                    target_path.unlink()  # Remove existing file
+                
+                download_path.rename(target_path)
+                print(f"Moved {filename} to {target_folder}")
+                return
+                
+            time.sleep(1)
+        
+        print(f"Timeout waiting for download: {filename}")
+    
+    def process_excel_file(self, excel_path, case_column="Case_Number"):
+        """
+        Process Excel file containing case numbers
+        
+        Args:
+            excel_path (str): Path to Excel file
+            case_column (str): Column name containing case numbers
+        """
+        try:
+            df = pd.read_excel(excel_path)
+            case_numbers = df[case_column].dropna().astype(str).tolist()
+            return case_numbers
+        except Exception as e:
+            print(f"Error reading Excel file: {str(e)}")
+            return []
+    
+    def run_automation(self, excel_path, login_url, case_column="Case_Number"):
+        """
+        Main automation function
+        
+        Args:
+            excel_path (str): Path to Excel file with case numbers
+            login_url (str): SSO login URL
+            case_column (str): Column name containing case numbers
+        """
+        try:
+            # Setup driver
+            self.setup_driver()
+            
+            # Login via SSO
+            self.login_sso(login_url)
+            
+            # Read case numbers from Excel
+            case_numbers = self.process_excel_file(excel_path, case_column)
+            
+            if not case_numbers:
+                print("No case numbers found in Excel file")
+                return
+            
+            print(f"Processing {len(case_numbers)} cases...")
+            
+            # Process each case
+            for i, case_number in enumerate(case_numbers, 1):
+                try:
+                    print(f"\n--- Processing case {i}/{len(case_numbers)}: {case_number} ---")
+                    
+                    # Navigate to case search (if not already there)
+                    if i == 1:  # First case
+                        self.navigate_to_case_search()
+                    
+                    # Search for case
+                    self.search_case(case_number)
+                    
+                    # Open case details
+                    self.open_case_details()
+                    
+                    # Download attachments
+                    self.download_attachments(case_number)
+                    
+                    # Go back to search for next case
+                    if i < len(case_numbers):
+                        self.driver.back()
+                        time.sleep(2)
+                    
+                except Exception as e:
+                    print(f"Error processing case {case_number}: {str(e)}")
+                    continue
+            
+            print(f"\nCompleted processing {len(case_numbers)} cases")
+            
+        except Exception as e:
+            print(f"Automation error: {str(e)}")
+        finally:
+            if self.driver:
+                self.driver.quit()
+
+# Usage example
+def main():
+    """Main function to run the automation"""
+    # Configuration
+    EXCEL_FILE = "case_numbers.xlsx"  # Path to your Excel file
+    LOGIN_URL = "https://example.com/sso/login"  # Your SSO login URL
+    DOWNLOAD_FOLDER = "case_downloads"  # Where to save downloads
+    CASE_COLUMN = "Case_Number"  # Column name in Excel file
+    
+    # Initialize automation
+    automation = DemoCaseAutomation(
+        download_folder=DOWNLOAD_FOLDER,
+        headless=False  # Set to True to run without browser window
+    )
+    
+    # Run automation
+    automation.run_automation(
+        excel_path=EXCEL_FILE,
+        login_url=LOGIN_URL,
+        case_column=CASE_COLUMN
+    )
+
+if __name__ == "__main__":
+    main()
