@@ -2,25 +2,17 @@ import PyPDF2
 import difflib
 import openpyxl
 
-SELECT *,
-  CASE
-    WHEN 
-      -- Full name match after removing non-alphabetic characters
-      REGEXP_REPLACE(UPPER(Q1_ECMP_CUSTOMER_NAME), '[^A-Z]', '') = REGEXP_REPLACE(UPPER(Q3_ECMP_COMPLAINANT_NAME), '[^A-Z]', '')
-
-      -- OR first and last name match even if middle exists
-      OR (
-        INSTR(REGEXP_REPLACE(UPPER(Q3_ECMP_COMPLAINANT_NAME), '[^A-Z ]', ''), 
-              REGEXP_REPLACE(UPPER(REGEXP_SUBSTR(Q1_ECMP_CUSTOMER_NAME, '^\S+')), '[^A-Z]', '')) > 0
-        AND
-        INSTR(REGEXP_REPLACE(UPPER(Q3_ECMP_COMPLAINANT_NAME), '[^A-Z ]', ''), 
-              REGEXP_REPLACE(UPPER(REGEXP_SUBSTR(Q1_ECMP_CUSTOMER_NAME, '\S+$')), '[^A-Z]', '')) > 0
-      )
-    THEN 'Self'
-    ELSE 'Other'
-  END AS COMPARISON_RESULT
-FROM your_table;
-
+CASE
+  WHEN 
+    REGEXP_REPLACE(UPPER(q1.CustomerName), '[^A-Z]', '') = REGEXP_REPLACE(UPPER(q1.ComplainantName), '[^A-Z]', '')
+    OR (
+      INSTR(REGEXP_REPLACE(UPPER(q1.ComplainantName), '[^A-Z ]', ''), REGEXP_REPLACE(UPPER(REGEXP_SUBSTR(q1.CustomerName, '^\S+')), '[^A-Z]', '')) > 0
+      AND
+      INSTR(REGEXP_REPLACE(UPPER(q1.ComplainantName), '[^A-Z ]', ''), REGEXP_REPLACE(UPPER(REGEXP_SUBSTR(q1.CustomerName, '\S+$')), '[^A-Z]', '')) > 0
+    )
+  THEN 'Self'
+  ELSE 'Other'
+END AS COMPARISON_RESULT
 
 # Function to extract text from each page of a PDF file
 def extract_text_from_pdf(file_path):
