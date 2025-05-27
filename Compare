@@ -2,6 +2,23 @@ import PyPDF2
 import difflib
 import openpyxl
 
+SELECT *,
+  CASE
+    WHEN 
+      UPPER(TRIM(Q1_ECMP_CUSTOMER_NAME)) = UPPER(TRIM(Q3_ECMP_COMPLAINANT_NAME))
+      OR (
+        UPPER(REGEXP_SUBSTR(Q1_ECMP_CUSTOMER_NAME, '^\S+')) = UPPER(REGEXP_SUBSTR(Q3_ECMP_COMPLAINANT_NAME, '^\S+'))
+        AND
+        UPPER(REGEXP_SUBSTR(Q1_ECMP_CUSTOMER_NAME, '\S+$')) = UPPER(REGEXP_SUBSTR(Q3_ECMP_COMPLAINANT_NAME, '\S+$'))
+      )
+    THEN 'Self'
+    ELSE 'Other'
+  END AS COMPARISON_RESULT
+FROM your_table;
+
+
+
+
 # Function to extract text from each page of a PDF file
 def extract_text_from_pdf(file_path):
     with open(file_path, "rb") as file:
