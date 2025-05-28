@@ -2,37 +2,18 @@ import PyPDF2
 import difflib
 import openpyxl
 
-data Auto_ECMP_ecn_acct1;
-  set Auto_ECMP_ecn_acct;
-  length cleaned_last_name $100 cleaned_last_name1 $100;
-
-  /* Normalize name fields */
-  full  = strip(Q1_ECMP_Customer_Name);
-  full1 = strip(Q3_ECMP_Complainant_Name);
-
-  /* Extract last and second-last word using multiple delimiters */
-  last  = scan(full, -1, ' ,.');
-  last2 = scan(full, -2, ' ,.');
-
-  cleaned_last_name = ifc(
-    upcase(last) in ("JR", "SR", "II", "III", "IV", "LLC", "INC", "APC") or lengthn(last) <= 2,
-    strip(last2),
-    strip(last)
-  );
-
-  last1   = scan(full1, -1, ' ,.');
-  last2_1 = scan(full1, -2, ' ,.');
-
-  cleaned_last_name1 = ifc(
-    upcase(last1) in ("JR", "SR", "II", "III", "IV", "LLC", "INC", "APC") or lengthn(last1) <= 2,
-    upcase(strip(last2_1)),
-    upcase(strip(last1))
-  );
-
-  drop full full1 last last2 last1 last2_1;
-run;
-
-
+proc sql;
+  create table your_output as
+  select *,
+    case
+      when 
+        upcase(scan(Q3_ECMP_COMPLAINANT_NAME, 1, ' ,.') ) = upcase(scan(Q1_ECMP_CUSTOMER_NAME, 1, ' ,.') )
+        and index(upcase(scan(Q3_ECMP_COMPLAINANT_NAME, -1, ' ,.-')), upcase(scan(Q1_ECMP_CUSTOMER_NAME, -1, ' ,.-'))) > 0
+      then 'Pass'
+      else 'Fail'
+    end as Q3_Check
+  from your_input;
+quit;
 # Function to extract text from each page of a PDF file
 def extract_text_from_pdf(file_path):
     with open(file_path, "rb") as file:
