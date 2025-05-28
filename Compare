@@ -2,30 +2,35 @@ import PyPDF2
 import difflib
 import openpyxl
 
-data want;
-  set have;
+data Auto_ECMP_ecn_acct1;
+  set Auto_ECMP_ecn_acct;
+  length cleaned_last_name $100 cleaned_last_name1 $100;
 
-  length cleaned_last_name $100;
+  /* Normalize name fields */
+  full  = strip(Q1_ECMP_Customer_Name);
+  full1 = strip(Q3_ECMP_Complainant_Name);
 
-  /* Replace commas, dots with space (for consistency) */
-  name_cleaned = tranwrd(strip(ECMP_Complainant_Name), ',', ' ');
-  name_cleaned = tranwrd(name_cleaned, '.', ' ');
+  /* Extract last and second-last word using multiple delimiters */
+  last  = scan(full, -1, ' ,.');
+  last2 = scan(full, -2, ' ,.');
 
-  /* Count total words after standardization */
-  word_count = countw(name_cleaned, ' ');
+  cleaned_last_name = ifc(
+    upcase(last) in ("JR", "SR", "II", "III", "IV", "LLC", "INC", "APC") or lengthn(last) <= 2,
+    strip(last2),
+    strip(last)
+  );
 
-  /* Get last and second-last words */
-  last_word = scan(name_cleaned, -1, ' ');
-  second_last = scan(name_cleaned, -2, ' ');
+  last1   = scan(full1, -1, ' ,.');
+  last2_1 = scan(full1, -2, ' ,.');
 
-  /* If last word is suffix or ≤2 chars, use second-to-last */
-  if upcase(last_word) in ("JR", "SR", "II", "III", "IV") or lengthn(last_word) <= 2 then
-    cleaned_last_name = second_last;
-  else
-    cleaned_last_name = last_word;
+  cleaned_last_name1 = ifc(
+    upcase(last1) in ("JR", "SR", "II", "III", "IV", "LLC", "INC", "APC") or lengthn(last1) <= 2,
+    upcase(strip(last2_1)),
+    upcase(strip(last1))
+  );
 
+  drop full full1 last last2 last1 last2_1;
 run;
-
 
 
 # Function to extract text from each page of a PDF file
