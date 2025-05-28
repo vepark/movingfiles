@@ -3,22 +3,31 @@ import difflib
 import openpyxl
 
 data want;
-  set your_input_dataset;
+  set have;
 
-  /* Convert to uppercase and strip */
-  full = strip(full_name);
+  length cleaned_last_name $100;
 
-  /* Extract last and second-to-last words (keep hyphens) */
-  last_word = prxchange('s/[^A-Z\-]+//i', -1, scan(full, -1, ' '));
-  second_last_word = prxchange('s/[^A-Z\-]+//i', -1, scan(full, -2, ' '));
+  /* Replace commas, dots with space (for consistency) */
+  name_cleaned = tranwrd(strip(ECMP_Complainant_Name), ',', ' ');
+  name_cleaned = tranwrd(name_cleaned, '.', ' ');
 
-  /* Check if last word is a suffix */
-  if upcase(last_word) in ("JR", "SR", "II", "III", "IV", "V") or lengthn(last_word) <= 2 then
-    cleaned_last_name = second_last_word;
+  /* Count total words after standardization */
+  word_count = countw(name_cleaned, ' ');
+
+  /* Get last and second-last words */
+  last_word = scan(name_cleaned, -1, ' ');
+  second_last = scan(name_cleaned, -2, ' ');
+
+  /* If last word is suffix or ≤2 chars, use second-to-last */
+  if upcase(last_word) in ("JR", "SR", "II", "III", "IV") or lengthn(last_word) <= 2 then
+    cleaned_last_name = second_last;
   else
     cleaned_last_name = last_word;
 
 run;
+
+
+
 # Function to extract text from each page of a PDF file
 def extract_text_from_pdf(file_path):
     with open(file_path, "rb") as file:
