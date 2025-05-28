@@ -2,18 +2,23 @@ import PyPDF2
 import difflib
 import openpyxl
 
-CASE
-  WHEN 
-    REGEXP_REPLACE(UPPER(q1.CustomerName), '[^A-Z]', '') = REGEXP_REPLACE(UPPER(q1.ComplainantName), '[^A-Z]', '')
-    OR (
-      INSTR(REGEXP_REPLACE(UPPER(q1.ComplainantName), '[^A-Z ]', ''), REGEXP_REPLACE(UPPER(REGEXP_SUBSTR(q1.CustomerName, '^\S+')), '[^A-Z]', '')) > 0
-      AND
-      INSTR(REGEXP_REPLACE(UPPER(q1.ComplainantName), '[^A-Z ]', ''), REGEXP_REPLACE(UPPER(REGEXP_SUBSTR(q1.CustomerName, '\S+$')), '[^A-Z]', '')) > 0
-    )
-  THEN 'Self'
-  ELSE 'Other'
-END AS COMPARISON_RESULT
+data want;
+  set your_input_dataset;
 
+  /* Convert to uppercase and strip */
+  full = strip(full_name);
+
+  /* Extract last and second-to-last words (keep hyphens) */
+  last_word = prxchange('s/[^A-Z\-]+//i', -1, scan(full, -1, ' '));
+  second_last_word = prxchange('s/[^A-Z\-]+//i', -1, scan(full, -2, ' '));
+
+  /* Check if last word is a suffix */
+  if upcase(last_word) in ("JR", "SR", "II", "III", "IV", "V") or lengthn(last_word) <= 2 then
+    cleaned_last_name = second_last_word;
+  else
+    cleaned_last_name = last_word;
+
+run;
 # Function to extract text from each page of a PDF file
 def extract_text_from_pdf(file_path):
     with open(file_path, "rb") as file:
