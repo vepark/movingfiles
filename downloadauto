@@ -38,7 +38,6 @@ print(f"Loaded {len(case_list)} case IDs.")
 for case_id in case_list:
     print(f"\n========== Processing case: {case_id} ==========")
     try:
-        # Click 'Case Search'
         print("Clicking 'Case Search'...")
         case_search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[text()='Case Search']")))
         case_search_button.click()
@@ -46,19 +45,21 @@ for case_id in case_list:
         print("⏳ Waiting 10 seconds for form to load...")
         time.sleep(10)
 
-        # Enter Case ID
+        # Locate input field
         try:
             print("🔍 Looking for Case ID input using ID selector...")
-            case_input = wait.until(EC.presence_of_element_located(
-                (By.XPATH, "//*[@id='774c51e8']")  # Replace this ID if dynamic in future
-            ))
+            case_input = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='774c51e8']")))
         except Exception as e:
-            print("❌ Could not locate input field. Dumping all input fields:")
+            print("❌ Could not locate Case ID input. Dumping all inputs:")
             inputs = driver.find_elements(By.TAG_NAME, "input")
             for idx, el in enumerate(inputs):
                 print(f"[{idx}] id: {el.get_attribute('id')}, aria-label: {el.get_attribute('aria-label')}, placeholder: {el.get_attribute('placeholder')}")
             raise e
 
+        # ✅ FIX: Click before sending keys to focus input
+        driver.execute_script("arguments[0].scrollIntoView(true);", case_input)
+        case_input.click()
+        time.sleep(0.5)
         case_input.clear()
         case_input.send_keys(case_id)
         driver.execute_script("""
@@ -67,22 +68,20 @@ for case_id in case_list:
         """, case_input)
         print(f"✅ Case ID {case_id} entered.")
 
-        # Click 'Search'
-        print("Clicking 'Search'...")
+        # Click Search
+        print("Clicking 'Search' button...")
         search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='Search']")))
         search_button.click()
 
-        # Expand row
         print("Clicking expand arrow...")
         expand_row = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class,'pi-chevron-right')]")))
         expand_row.click()
 
-        # Click 'View Case'
         print("Clicking 'View Case'...")
         view_case_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='View Case']")))
         view_case_btn.click()
 
-        # Handle popup
+        # Handle optional popup
         try:
             ok_button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, "//button[text()='OK']")))
             ok_button.click()
@@ -90,12 +89,12 @@ for case_id in case_list:
         except:
             print("No popup appeared.")
 
-        # Scroll to 'Attachments'
+        # Scroll to Attachments
         print("Scrolling to 'Attachments' section...")
         attachments_header = wait.until(EC.presence_of_element_located((By.XPATH, "//h4[contains(text(), 'Attachments')]")))
         driver.execute_script("arguments[0].scrollIntoView(true);", attachments_header)
 
-        # Find and download attachments
+        # Find and download files
         print("Looking for attachment links...")
         attachment_links = driver.find_elements(By.CSS_SELECTOR, "a[href$='.pdf'], a[href$='.docx'], a[href$='.doc'], a[href$='.xlsx'], a[href$='.xls'], a[href$='.html']")
         if not attachment_links:
@@ -129,7 +128,6 @@ for case_id in case_list:
             if not downloaded:
                 print(f"❌ Timeout: Download did not complete for {file_name}")
 
-        # Go back
         print("Returning to Case Search...")
         driver.switch_to.default_content()
         driver.back()
