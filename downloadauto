@@ -10,7 +10,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 
-
 # ----------------- SETUP EDGE DRIVER -----------------
 options = EdgeOptions()
 prefs = {
@@ -45,36 +44,16 @@ for case_id in case_list:
         print("⏳ Waiting 10 seconds for form to load...")
         time.sleep(10)
 
-        # List of XPaths to try
-        xpaths_to_try = [
-            "//*[@id='774c51e8']",
-            "//*[@id='headerlabel6309']",
-            "//*[@id='RULE_KEY']/div/div/div/div/label",
-            "//*[@id='RULE_KEY']/div/div/div",
-            "//*[@id='RULE_KEY']/div[2]",
-            "//*[@id='d8c786ed']",
-            "//*[@id='EXPAND-OUTERFRAME']/div[2]/div[1]/div/div/div/div/div[1]/label"
-        ]
+        # ✅ Use only the working XPath
+        print("Locating container using XPath...")
+        container = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@id='RULE_KEY']/div/div/div")))
+        print("✅ Container found")
 
-        case_input = None
-        for xpath in xpaths_to_try:
-            try:
-                print(f"🔍 Trying XPath: {xpath}")
-                case_input = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-                print(f"✅ Found element with XPath: {xpath}")
-                break
-            except:
-                print(f"❌ Failed: {xpath}")
-                continue
+        # ✅ Now find the actual <input> inside the container
+        case_input = container.find_element(By.XPATH, ".//input[not(@disabled) and not(@readonly)]")
+        print("✅ Input field found inside container")
 
-        if not case_input:
-            print("🚫 No valid input field found after trying all XPaths.")
-            inputs = driver.find_elements(By.TAG_NAME, "input")
-            for idx, el in enumerate(inputs):
-                print(f"[{idx}] id: {el.get_attribute('id')}, aria-label: {el.get_attribute('aria-label')}, placeholder: {el.get_attribute('placeholder')}")
-            raise Exception("Unable to locate Case ID input field.")
-
-        # ✅ JS click to avoid intercepted click
+        # ✅ JS-based click to avoid overlay issues
         driver.execute_script("arguments[0].scrollIntoView(true);", case_input)
         driver.execute_script("arguments[0].click();", case_input)
 
@@ -88,6 +67,7 @@ for case_id in case_list:
         """, case_input)
         print(f"✅ Case ID {case_id} entered.")
 
+        # Continue flow
         print("Clicking 'Search' button...")
         search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='Search']")))
         search_button.click()
