@@ -1,4 +1,3 @@
-
 import os
 import time
 import traceback
@@ -10,7 +9,6 @@ from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# ----------------- CONFIGURATION -----------------
 
 # ----------------- SETUP EDGE DRIVER -----------------
 options = EdgeOptions()
@@ -38,39 +36,39 @@ print(f"Loaded {len(case_list)} case IDs.")
 for case_id in case_list:
     print(f"\n--- Processing case: {case_id} ---")
     try:
-        # Wait for and enter the case number
-        input_box = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Case ID Number']")))
+        # Wait and enter the case number
+        input_box = wait.until(EC.presence_of_element_located((
+            By.XPATH,
+            "//label[contains(text(), 'Case ID Number')]/following-sibling::input"
+        )))
         input_box.clear()
         input_box.send_keys(case_id)
+
         driver.execute_script("""
             arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
             arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
         """, input_box)
 
+        print("Case ID entered.")
+
         # Click the Search button
-        print("Clicking 'Search'...")
         search_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='Search']")))
         search_button.click()
 
-        # Wait for the search result > arrow and click it
-        print("Clicking expand arrow...")
+        # Click the expand arrow >
         expand_arrow = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(@class, 'ExpCollIcon')]")))
         expand_arrow.click()
 
         # Click 'View Case'
-        print("Clicking 'View Case'...")
         view_case = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'View Case')]")))
         view_case.click()
 
-        # Scroll to Attachments section
-        print("Scrolling to 'Attachments' section...")
+        # Scroll to Attachments
         attach_section = wait.until(EC.presence_of_element_located((By.XPATH, "//h4[text()='Attachments']")))
         driver.execute_script("arguments[0].scrollIntoView(true);", attach_section)
 
-        # Get all download links
-        print("Looking for attachment links...")
+        # Get all attachments
         attachment_links = driver.find_elements(By.CSS_SELECTOR, "a[href$='.pdf'], a[href$='.docx'], a[href$='.doc'], a[href$='.xlsx'], a[href$='.xls'], a[href$='.html']")
-
         if not attachment_links:
             print("No attachments found.")
             continue
@@ -79,7 +77,6 @@ for case_id in case_list:
         case_folder = os.path.join(DOWNLOAD_DIR, case_id)
         os.makedirs(case_folder, exist_ok=True)
 
-        # Download each file
         for link in attachment_links:
             file_name = link.text.strip() or "downloaded_file"
             print(f"Downloading: {file_name}")
