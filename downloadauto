@@ -74,11 +74,14 @@ for case_id in case_list:
                 print(f"[{idx}] id: {el.get_attribute('id')}, aria-label: {el.get_attribute('aria-label')}, placeholder: {el.get_attribute('placeholder')}")
             raise Exception("Unable to locate Case ID input field.")
 
+        # ✅ JS click to avoid intercepted click
         driver.execute_script("arguments[0].scrollIntoView(true);", case_input)
-        case_input.click()
+        driver.execute_script("arguments[0].click();", case_input)
+
         time.sleep(0.5)
         case_input.clear()
         case_input.send_keys(case_id)
+
         driver.execute_script("""
             arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
             arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
