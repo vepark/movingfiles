@@ -1,157 +1,134 @@
-# -*- coding: utf-8 -*-
-"""
- • Sections 1-3:   original behaviour; no forced lower-casing on df_main
- • Section 4.1:    two-column Customer-Info table (CamelCase labels)
- • Section 4.3:    NEW-PAGE landscape block, three transaction tables
-                   (CamelCase headers, time ‘ 00:00:00’ stripped)
-"""
-
 import os, re, pandas as pd
 from docx import Document
 from docx.enum.section import WD_SECTION, WD_ORIENT
 
-
-# ──────────────── PATHS ────────────────
+# Paths
 BASE = r"/workspace2/cdar/data/discovery"
-template_path           = os.path.join(BASE, "Modified_Template.docx")
-output_dir              = os.path.join(BASE, "new_output")
-
-excel_main_path         = os.path.join(BASE, "Data_for_Discovery_template2.xlsx")
-excel_customer_path     = os.path.join(BASE, "DPG_Customer_Info.xlsx")
+template_path = os.path.join(BASE, "Modified_Template.docx")
+output_dir = os.path.join(BASE, "new_output")
+excel_main_path = os.path.join(BASE, "Data_for_Discovery_template2.xlsx")
+excel_customer_path = os.path.join(BASE, "DPG_Customer_Info.xlsx")
 excel_transactions_path = os.path.join(BASE, "DPG_Transactions.xlsx")
 
-
-# ──────────────── LOAD EXCEL ───────────
+# Load data
 df_main = pd.read_excel(excel_main_path, dtype=str, engine="openpyxl")
-df_main.columns = df_main.columns.str.strip()              # KEEP ORIGINAL CASE
-
 df_customer = pd.read_excel(excel_customer_path, dtype=str, engine="openpyxl")
-df_customer.columns = df_customer.columns.str.strip().str.lower()
-
 df_s1 = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
 df_s2 = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
 df_s3 = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
+
+# Keep column names as-is
+df_main.columns = df_main.columns.str.strip()
+df_customer.columns = df_customer.columns.str.strip()
 for d in (df_s1, df_s2, df_s3):
     d.columns = d.columns.str.strip().str.lower()
 
-
-# ──────────────── LABEL MAP (exactly as before) ──────────
+# Section 1-3 mappings exactly as your original
 label_to_column = {
-    "Case ID":                     "CaseID",
-    "Case Owner":                  "CaseOwner",
+    "Case ID": "CaseID",
+    "Case Owner": "CaseOwner",
     "Customer (Complainant) Name": "CustomerName",
-    "Customer Number ECN":         "ECN",
-    "Authentication":              "Authentication",
-    "List system(s) utilized":     "ListSystemsUtilized",
-    "What happened? Note Summary": "OriginalNote",
-    "Original Note Summary":       "OriginalNote",
-    "Updated Note Summary":        "UpdatedNote",
-    "Response Bullet List":        "ResponseBulletList",
-    "Related Cases Recontact":     "RelatedCasesRecontact",
-    "CrossLineBusinessCase":       "CrossLineBusinessCase",
-    "CallReviews":                 "CallReviews",
-    "RiskIndicators":              "RiskIndicators",
-    #   … add any other left-cell labels you use …
+    "Customer Number (ECN)": "ECN",
+    "Original Note Summary": "OriginalNote",
+    "Updated Note Summary": "UpdatedNote",
+    "Response Bullet List": "ResponseBulletList",
+    "Related Cases Recontact": "RelatedCasesRecontact",
+    "CrossLineBusinessCase": "CrossLineBusinessCase",
+    "CallReviews": "CallReviews",
+    "RiskIndicators": "RiskIndicators",
+    "Primary Complaint": "Primary_Description",
+    "List details from the complaint": "Primary_Details",
+    "Cite documents, tools, systems": "Primary_Citations",
+    "Summarize findings of the research": "Primary_Summary",
+    "Secondary Complaint": "Secondary_Description",
+    "List details from the complaint (2)": "Secondary_Details",
+    "Cite documents, tools, systems (2)": "Secondary_Citations",
+    "Summarize findings of the research (2)": "Secondary_Summary",
+    "Additional Complaint(s)": "Additional_Description",
+    "List details from the complaint (3)": "Additional_Details",
+    "Cite documents, tools, systems (3)": "Additional_Citations",
+    "Summarize findings of the research (3)": "Additional_Summary",
+    "WF_TPError": "WF_TPError",
+    "ReliefType": "ReliefType",
+    "Enter reason for relief": "Relief_Reason",
+    "Resolution": "Resolution",
+    "Note Resolution": "Resolution_Note"
 }
 
+# Helpers
+def wipe(runs):
+    for r in runs:
+        r.text = ""
 
-# ──────────────── COMMON HELPERS ───────
 def snake_to_camel(s):
     parts = s.split("_")
     return parts[0].capitalize() + "".join(p.capitalize() for p in parts[1:])
 
 def strip_time(df):
-    return df.applymap(lambda x: re.sub(r"\s00:00:00$", "", str(x))
-                       if isinstance(x, str) else x)
+    return df.applymap(lambda x: re.sub(r"\s00:00:00$", "", str(x)) if isinstance(x, str) else x)
 
-def wipe_runs(runs):
-    for r in runs:
-        r.text = ""
-
-def add_table_after(doc, anchor, dataframe):
-    tbl = doc.add_table(rows=1, cols=len(dataframe.columns))
-    tbl.style = "Table Grid"
-    for i, col in enumerate(dataframe.columns):
-        tbl.rows[0].cells[i].text = snake_to_camel(col)
-    for _, row in dataframe.iterrows():
-        cells = tbl.add_row().cells
-        for i, col in enumerate(dataframe.columns):
-            cells[i].text = str(row[col])
-    el = tbl._tbl
+def add_table_after(doc, anchor, df):
+    t = doc.add_table(rows=1, cols=len(df.columns))
+    t.style = "Table Grid"
+    for i, c in enumerate(df.columns):
+        t.rows[0].cells[i].text = snake_to_camel(c)
+    for _, r in df.iterrows():
+        cells = t.add_row().cells
+        for i, c in enumerate(df.columns):
+            cells[i].text = str(r[c])
+    el = t._tbl
     body = el.getparent()
     body.remove(el)
     anchor.addnext(el)
     return el
 
-def start_landscape(doc):
-    s = doc.add_section(WD_SECTION.NEW_PAGE)
-    s.orientation = WD_ORIENT.LANDSCAPE
-    s.page_width, s.page_height = s.page_height, s.page_width
-    return s
-
-def end_portrait(doc):
-    s = doc.add_section(WD_SECTION.NEW_PAGE)
-    s.orientation = WD_ORIENT.PORTRAIT
-    s.page_width, s.page_height = s.page_height, s.page_width
-    return s
-
-
-# ──────────────── SECTION 1-3 FUNCTIONS ─
-def fill_table_right_cell(doc, row):
+# Section 1-3: fill tables and placeholders
+def fill_table_right_cell(doc, label_to_value):
     for tbl in doc.tables:
-        for tr in tbl.rows:
-            if len(tr.cells) < 2:
-                continue
-            label_text = tr.cells[0].text.strip()
-            if label_text in label_to_column:
-                col = label_to_column[label_text]
-                tr.cells[1].text = "" if pd.isna(row[col]) else str(row[col])
+        for row in tbl.rows:
+            for i, cell in enumerate(row.cells):
+                text = cell.text.strip()
+                if text in label_to_value and i + 1 < len(row.cells):
+                    row.cells[i + 1].text = label_to_value[text]
 
-def fill_text_placeholders(doc, row):
-    def repl(txt):
-        for col in row.index:
-            ph = f"<<{col}>>"
-            if ph in txt:
-                txt = txt.replace(ph, "" if pd.isna(row[col]) else str(row[col]))
-        return txt
+def fill_text_placeholders(doc, label_to_value):
     for p in doc.paragraphs:
-        new = repl(p.text)
-        if new != p.text:
-            wipe_runs(p.runs)
-            p.add_run(new)
+        for label, val in label_to_value.items():
+            if f"<<{label}>>" in p.text:
+                for r in p.runs:
+                    r.text = r.text.replace(f"<<{label}>>", val)
     for tbl in doc.tables:
-        for tr in tbl.rows:
-            for cell in tr.cells:
-                if "<<" in cell.text:
-                    cell.text = repl(cell.text)
+        for row in tbl.rows:
+            for cell in row.cells:
+                for label, val in label_to_value.items():
+                    if f"<<{label}>>" in cell.text:
+                        cell.text = cell.text.replace(f"<<{label}>>", val)
 
-
-# ──────────────── SECTION 4.1 ───────────
+# Section 4.1
 def insert_customer_info(doc, customer_df):
     if customer_df.empty:
         return
-    r = customer_df.iloc[0].drop(labels=["case_nr"], errors="ignore")
+    r = customer_df.iloc[0].drop(labels=["Case_Nr"], errors="ignore")
     tdf = pd.DataFrame({
-        "Item":  [snake_to_camel(c) for c in r.index],
+        "Item": [snake_to_camel(c) for c in r.index],
         "Value": r.values
     })
     for p in doc.paragraphs:
         if "<<Customer_Info>>" in p.text:
-            wipe_runs(p.runs)
+            wipe(p.runs)
             add_table_after(doc, p._p, tdf)
             break
 
-
-# ──────────────── SECTION 4.3 ───────────
+# Section 4.3
 def insert_transactions(doc, cid):
     ph = next((p for p in doc.paragraphs if "<<Holds and Funds>>" in p.text), None)
     if ph is None:
         return
-    wipe_runs(ph.runs)
+    wipe(ph.runs)
     anchor = ph._p
-
-    start_landscape(doc)
-
+    sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec.orientation = WD_ORIENT.LANDSCAPE
+    sec.page_width, sec.page_height = sec.page_height, sec.page_width
     for idx, sheet in enumerate((df_s1, df_s2, df_s3), 1):
         part = sheet[sheet["case_nr"].astype(str).str.strip() == cid]
         if part.empty:
@@ -168,25 +145,21 @@ def insert_transactions(doc, cid):
             anchor.addnext(hdr_el)
             anchor = hdr_el
             anchor = add_table_after(doc, anchor, part)
+    sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec.orientation = WD_ORIENT.PORTRAIT
+    sec.page_width, sec.page_height = sec.page_height, sec.page_width
 
-    end_portrait(doc)
-
-
-# ──────────────── MAIN LOOP ─────────────
+# Main loop
 os.makedirs(output_dir, exist_ok=True)
-
-for _, rec in df_main.iterrows():
-    cid = str(rec["CaseID"]).strip()
+for _, row in df_main.iterrows():
     doc = Document(template_path)
-
-    fill_table_right_cell(doc, rec)
-    fill_text_placeholders(doc, rec)
-
-    cust_rows = df_customer[df_customer["case_nr"].astype(str).str.strip() == cid]
+    label_to_value = {label: str(row[col]).strip() if pd.notnull(row[col]) else "" for label, col in label_to_column.items()}
+    fill_table_right_cell(doc, label_to_value)
+    fill_text_placeholders(doc, label_to_value)
+    cid = str(row["CaseID"]).strip()
+    cust_rows = df_customer[df_customer["Case_Nr"].astype(str).str.strip() == cid]
     insert_customer_info(doc, cust_rows)
-
     insert_transactions(doc, cid)
-
     out_path = os.path.join(output_dir, f"DPG_Case_{cid}.docx")
     doc.save(out_path)
     print("Created", out_path)
