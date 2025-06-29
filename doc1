@@ -1,198 +1,88 @@
-# -*- coding: utf-8 -*-
-"""
-Generate Wells Fargo Research Documents
-
-• Sections 1-3 – relies on your existing helper functions (unchanged here)
-• Section 4.1 – fills <<Customer_Info>> with DPG_Customer_Info.xlsx
-• Section 4.3 – fills <<Holds and Funds>> with three tables
-                 from DPG_Transactions.xlsx (Sheet1 → Sheet2 → Sheet3)
-
-One .docx file is produced for every distinct CaseID in
-Data_for_Discovery_template2.xlsx.
-"""
-
 import os
 import pandas as pd
 from docx import Document
 
-# ---------------------------------------------------------------------------#
-# 1)  PATHS  –  edit to match your environment
-# ---------------------------------------------------------------------------#
-template_path           = r"/workspace2/ccdar/data/discovery/Modified_Template.docx"
-output_dir              = r"/workspace2/ccdar/data/discovery/new_output"
+template_path = r"/workspace2/cdar/data/discovery/Modified_Template.docx"
+output_dir = r"/workspace2/cdar/data/discovery/new_output"
+excel_main_path = r"/workspace2/cdar/data/discovery/Data_for_Discovery_template2.xlsx"
+excel_customer_path = r"/workspace2/cdar/data/discovery/DPG_Customer_Info.xlsx"
+excel_transactions_path = r"/workspace2/cdar/data/discovery/DPG_Transactions.xlsx"
 
-excel_main_path         = r"/workspace2/ccdar/data/discovery/Data_for_Discovery_template2.xlsx"
-excel_customer_path     = r"/workspace2/ccdar/data/discovery/DPG_Customer_Info.xlsx"
-excel_transactions_path = r"/workspace2/ccdar/data/discovery/DPG_Transactions.xlsx"
+df_main = pd.read_excel(excel_main_path, dtype=str, engine="openpyxl")
+df_customer = pd.read_excel(excel_customer_path, dtype=str, engine="openpyxl")
+df_sheet1 = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
+df_sheet2 = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
+df_sheet3 = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
 
-# ---------------------------------------------------------------------------#
-# 2)  LOAD EXCEL SHEETS
-# ---------------------------------------------------------------------------#
-df_main     = pd.read_excel(excel_main_path,      dtype=str, engine="openpyxl")
-df_customer = pd.read_excel(excel_customer_path,  dtype=str, engine="openpyxl")
-df_sheet1   = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
-df_sheet2   = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
-df_sheet3   = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
+for d in (df_main, df_customer, df_sheet1, df_sheet2, df_sheet3):
+    d.columns = d.columns.str.strip().str.lower()
 
-# Lower-case column headers once to avoid case-sensitive headaches
-for _df in (df_main, df_customer, df_sheet1, df_sheet2, df_sheet3):
-    _df.columns = _df.columns.str.strip().str.lower()
-
-# OPTIONAL: if the main sheet can list a CaseID more than once,
-# uncomment the line below to keep only the first row per CaseID
-# df_main = df_main.drop_duplicates(subset="caseid")
-
-# ---------------------------------------------------------------------------#
-# 3)  HELPER FUNCTIONS
-# ---------------------------------------------------------------------------#
 def insert_df_as_table_at_tag(doc, tag, df):
-    """
-    Replace the first occurrence of <<tag>> (case-insensitive) with a Word
-    table built from `df`.  Works whether the tag is inside a paragraph or
-    inside any table cell.
-    Returns the xml element of the newly-inserted table (so callers can
-    append another element right after it if needed).
-    """
     tag_lc = tag.lower()
-
-    # --- search paragraphs -------------------------------------------------
-    for paragraph in doc.paragraphs:
-        if tag_lc in paragraph.text.lower():
-            _delete_tag_text(paragraph.runs, tag)
-            return _create_table_after(doc, paragraph._p, df)
-
-    # --- search inside existing table cells -------------------------------
+    for p in doc.paragraphs:
+        if tag_lc in p.text.lower():
+            _delete(p.runs, tag)
+            return _table_after(doc, p._p, df)
     for tbl in doc.tables:
         for cell in tbl.cells:
             if tag_lc in cell.text.lower():
-                _delete_tag_text(cell.paragraphs[0].runs, tag)
-                return _create_table_after(doc, cell._tc, df)
-
-    print(f"[WARN] Tag {tag} not found in template")
+                _delete(cell.paragraphs[0].runs, tag)
+                return _table_after(doc, cell._tc, df)
     return None
 
-
-def _delete_tag_text(runs, tag):
-    """Remove the tag text from a list of runs (case-insensitive)."""
+def _delete(runs, tag):
     tag_lc = tag.lower()
-    for run in runs:
-        if tag_lc in run.text.lower():
-            run.text = run.text.replace(tag, "")
+    for r in runs:
+        if tag_lc in r.text.lower():
+            r.text = r.text.replace(tag, "")
 
-
-def _create_table_after(doc, anchor_element, df):
-    """
-    Build a Word table with df’s contents, then move its underlying xml
-    right after `anchor_element` so it appears in the exact spot.
-    """
-    table = doc.add_table(rows=1, cols=len(df.columns))
-    table.style = "Table Grid"
-
-    # header row
-    for i, col in enumerate(df.columns):
-        table.rows[0].cells[i].text = str(col)
-
-    # data rows
+def _table_after(doc, anchor, df):
+    t = doc.add_table(rows=1, cols=len(df.columns))
+    t.style = "Table Grid"
+    for i, c in enumerate(df.columns):
+        t.rows[0].cells[i].text = str(c)
     for _, row in df.iterrows():
-        cells = table.add_row().cells
-        for i, col in enumerate(df.columns):
-            cells[i].text = str(row[col])
+        cells = t.add_row().cells
+        for i, c in enumerate(df.columns):
+            cells[i].text = str(row[c])
+    el = t._tbl
+    body = el.getparent()
+    body.remove(el)
+    anchor.addnext(el)
+    return el
 
-    tbl_el = table._tbl
-    body   = tbl_el.getparent()
-    body.remove(tbl_el)           # remove from end
-    anchor_element.addnext(tbl_el)   # insert in place
-    return tbl_el
-
-
-def insert_additional_table_after(doc, anchor_el, df, heading=None):
-    """
-    Like _create_table_after, but caller already has an anchor (usually the
-    previous table).  Optionally insert a bold heading paragraph first.
-    Returns xml element of the new table so callers can chain calls.
-    """
+def add_table_after(doc, anchor, df, heading=None):
     if heading:
         p = doc.add_paragraph(heading)
         p.bold = True
-        p_el = p._p
-        body = p_el.getparent()
-        body.remove(p_el)
-        anchor_el.addnext(p_el)
-        anchor_el = p_el
+        pel = p._p
+        body = pel.getparent()
+        body.remove(pel)
+        anchor.addnext(pel)
+        anchor = pel
+    return _table_after(doc, anchor, df)
 
-    return _create_table_after(doc, anchor_el, df)
-
-
-def insert_transactions_tables(doc, tag, sheets, case_id):
-    """
-    Insert df tables for Sheet1, Sheet2, Sheet3 sequentially at the `tag`
-    position (only rows matching case_id).  Skips a sheet if no rows match.
-    """
+def insert_transactions(doc, tag, sheets, case_id):
     anchor = None
-    for idx, df in enumerate(sheets, start=1):
-        filtered = df[df["case_nr"].astype(str).str.strip() == case_id]
-        if filtered.empty:
+    for idx, df in enumerate(sheets, 1):
+        f = df[df["case_nr"].astype(str).str.strip() == case_id]
+        if f.empty:
             continue
+        if anchor is None:
+            anchor = insert_df_as_table_at_tag(doc, tag, f.drop(columns=["case_nr"]))
+        else:
+            hdr = "Transactions Sheet{}".format(idx)
+            anchor = add_table_after(doc, anchor, f.drop(columns=["case_nr"]), hdr)
 
-        if anchor is None:   # first matching sheet replaces the tag
-            anchor = insert_df_as_table_at_tag(doc, tag, filtered.drop(columns=["case_nr"]))
-        else:                # later sheets go right after the last table
-            hdr = f"Transactions Sheet{idx}"
-            anchor = insert_additional_table_after(doc, anchor, filtered.drop(columns=["case_nr"]), hdr)
-
-
-# ---------------------------------------------------------------------------#
-# 4)  MAIN  –  one document per case
-# ---------------------------------------------------------------------------#
 os.makedirs(output_dir, exist_ok=True)
 
 for _, rec in df_main.iterrows():
-    # No zero-padding now—just trim whitespace & keep the original
     case_id = str(rec.get("caseid", "")).strip()
-
-    # ------------------------------------------------------------------ #
-    # Create new document from template
-    # ------------------------------------------------------------------ #
     doc = Document(template_path)
-
-    # ------------------------------------------------------------------ #
-    # Sections 1-3  – your original functions here (unchanged)
-    # ------------------------------------------------------------------ #
-    # Example – uncomment / modify to match your real helpers:
-    #
-    # label_to_value = {col.lower(): str(rec[col]) if pd.notna(rec[col]) else ""
-    #                   for col in df_main.columns}
-    #
-    # fill_table_right_cell(doc, label_to_value)   # ← your existing function
-    # fill_text_placeholder(doc, label_to_value)   # ← likewise
-    # ------------------------------------------------------------------ #
-
-    # ------------------------------------------------------------------ #
-    # Section 4.1  – Customer & Account Info
-    # ------------------------------------------------------------------ #
-    cust_rows = df_customer[df_customer["case_nr"].astype(str).str.strip() == case_id]
-    if not cust_rows.empty:
-        insert_df_as_table_at_tag(
-            doc,
-            tag="<<Customer_Info>>",
-            df=cust_rows.drop(columns=["case_nr"])
-        )
-
-    # ------------------------------------------------------------------ #
-    # Section 4.3  – Transactions / Holds & Funds
-    # ------------------------------------------------------------------ #
-    insert_transactions_tables(
-        doc,
-        tag="<<Holds and Funds>>",
-        sheets=[df_sheet1, df_sheet2, df_sheet3],
-        case_id=case_id
-    )
-
-    # ------------------------------------------------------------------ #
-    # Save document
-    # ------------------------------------------------------------------ #
-    out_file = os.path.join(output_dir, f"DPG_Case_{case_id}.docx")
-    doc.save(out_file)
-    print(f"✓  Created {out_file}")
-
-print("\nAll documents generated successfully.")
+    cust = df_customer[df_customer["case_nr"].astype(str).str.strip() == case_id]
+    if not cust.empty:
+        insert_df_as_table_at_tag(doc, "<<Customer_Info>>", cust.drop(columns=["case_nr"]))
+    insert_transactions(doc, "<<Holds and Funds>>", [df_sheet1, df_sheet2, df_sheet3], case_id)
+    out_path = os.path.join(output_dir, "DPG_Case_{}.docx".format(case_id))
+    doc.save(out_path)
+    print("Created {}".format(out_path))
