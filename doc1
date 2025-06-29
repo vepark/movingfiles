@@ -1,99 +1,175 @@
-# -*- coding: utf-8 -*-
-import os, pandas as pd
+import os, re, pandas as pd
 from docx import Document
+from docx.enum.section import WD_SECTION, WD_ORIENT
 
-template_path = r"/workspace2/cdar/data/discovery/Modified_Template.docx"
-output_dir    = r"/workspace2/cdar/data/discovery/new_output"
-excel_main_path         = r"/workspace2/cdar/data/discovery/Data_for_Discovery_template2.xlsx"
-excel_customer_path     = r"/workspace2/cdar/data/discovery/DPG_Customer_Info.xlsx"
-excel_transactions_path = r"/workspace2/cdar/data/discovery/DPG_Transactions.xlsx"
+# ------------- PATHS -------------------------------------------------------
+BASE = r"/workspace2/cdar/data/discovery"
+template_path           = os.path.join(BASE, "Modified_Template.docx")
+output_dir              = os.path.join(BASE, "new_output")
+excel_main_path         = os.path.join(BASE, "Data_for_Discovery_template2.xlsx")
+excel_customer_path     = os.path.join(BASE, "DPG_Customer_Info.xlsx")
+excel_transactions_path = os.path.join(BASE, "DPG_Transactions.xlsx")
 
+# ------------- LOAD EXCEL --------------------------------------------------
 df_main     = pd.read_excel(excel_main_path,      dtype=str, engine="openpyxl")
 df_customer = pd.read_excel(excel_customer_path,  dtype=str, engine="openpyxl")
-df_s1 = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
-df_s2 = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
-df_s3 = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
+df_s1       = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
+df_s2       = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
+df_s3       = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
 
 for d in (df_main, df_customer, df_s1, df_s2, df_s3):
     d.columns = d.columns.str.strip().str.lower()
 
-def fill_table_right_cell(doc, m):
-    for tbl in doc.tables:
-        for row in tbl.rows:
-            if len(row.cells) < 2: continue
-            k = row.cells[0].text.strip().lower()
-            if k in m: row.cells[1].text = str(m[k])
+# ------------- SECTION-1/3 MAPPING ----------------------------------------
+label_to_column = {
+    "case id":                     "caseid",
+    "case owner":                  "caseowner",
+    "customer (complainant) name": "customername",
+    "customer number ecn":         "ecn",
+    "authentication":              "authentication",
+    "list system(s) utilized":     "listsystemsutilized",
+    "what happened? note summary": "originalnote",
+    "original note summary":       "originalnote",
+    "updated note summary":        "updatednote",
+    "response bullet list":        "responsebulletlist",
+    "related cases recontact":     "relatedcasesrecontact",
+    "cross line of business case": "crosslinebusinesscase",
+    "call reviews":                "callreviews",
+    "risk indicators":             "riskindicators",
+}
 
-def fill_text_placeholder(doc, m):
-    for p in doc.paragraphs:
-        for k, v in m.items():
-            tag = f"<<{k}>>"
-            if tag.lower() in p.text.lower():
-                for r in p.runs:
-                    if tag.lower() in r.text.lower():
-                        r.text = r.text.replace(tag, str(v))
+# ------------- COMMON HELPERS ---------------------------------------------
+def snake_to_camel(s):
+    p = s.split("_")
+    return p[0].capitalize() + "".join(w.capitalize() for w in p[1:])
 
-def _table_after(doc, anchor, df):
-    t = doc.add_table(rows=1, cols=len(df.columns)); t.style = "Table Grid"
-    for i, c in enumerate(df.columns): t.rows[0].cells[i].text = str(c)
+def strip_time(df):
+    return df.applymap(lambda x: re.sub(r"\s00:00:00$", "", str(x)) if isinstance(x, str) else x)
+
+def wipe(runs):                                   # clear paragraph content
+    for r in runs: r.text = ""
+
+def add_tbl_after(doc, anchor, df):               # build Word table
+    t = doc.add_table(rows=1, cols=len(df.columns))
+    t.style = "Table Grid"
+    for i, c in enumerate(df.columns):
+        t.rows[0].cells[i].text = snake_to_camel(c)
     for _, r in df.iterrows():
         cells = t.add_row().cells
-        for i, c in enumerate(df.columns): cells[i].text = str(r[c])
-    el = t._tbl; body = el.getparent(); body.remove(el); anchor.addnext(el); return el
+        for i, c in enumerate(df.columns):
+            cells[i].text = str(r[c])
+    el = t._tbl
+    body = el.getparent()
+    body.remove(el)
+    anchor.addnext(el)
+    return el
 
-def _clear_paragraph(p): 
-    for r in p.runs: r.text = ""
+# ---------- portrait ↔ landscape section utilities ------------------------
+def start_landscape_block(doc):
+    sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec.orientation = WD_ORIENT.LANDSCAPE
+    sec.page_width, sec.page_height = sec.page_height, sec.page_width
+    return sec
 
-def insert_table_at_tag(doc, tag, df):
-    tl = tag.lower()
+def end_portrait_block(doc):
+    sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec.orientation = WD_ORIENT.PORTRAIT
+    sec.page_width, sec.page_height = sec.page_height, sec.page_width
+    return sec
+
+# ---------- SECTION-1/3 FILLERS -------------------------------------------
+def fill_table_right_cell(doc, row):
+    for tbl in doc.tables:
+        for r in tbl.rows:
+            if len(r.cells) < 2:
+                continue
+            key = r.cells[0].text.strip().lower()
+            if key in label_to_column:
+                col = label_to_column[key]
+                r.cells[1].text = "" if pd.isna(row[col]) else str(row[col])
+
+def fill_text_placeholders(doc, row):
+    def sub(text):
+        for c in row.index:
+            tag = f"<<{c.lower()}>>"
+            if tag in text.lower():
+                text = re.sub(re.escape(tag),
+                              "" if pd.isna(row[c]) else str(row[c]),
+                              text, flags=re.I)
+        return text
     for p in doc.paragraphs:
-        if tl in p.text.lower():
-            _clear_paragraph(p)
-            return _table_after(doc, p._p, df)
+        t2 = sub(p.text)
+        if t2 != p.text:
+            wipe(p.runs); p.add_run(t2)
     for tbl in doc.tables:
         for cell in tbl.cells:
-            if tl in cell.text.lower():
-                cell.text = ""
-                return _table_after(doc, cell._tc, df)
-    return None
+            if "<<" in cell.text:
+                cell.text = sub(cell.text)
 
-def add_after(doc, anchor, df, heading=None):
-    if heading:
-        p = doc.add_paragraph(heading); p.bold = True
-        pel = p._p; body = pel.getparent(); body.remove(pel); anchor.addnext(pel); anchor = pel
-    return _table_after(doc, anchor, df)
+# ---------- SECTION-4 HELPERS ---------------------------------------------
+def insert_customer_info(doc, customer_df):
+    if customer_df.empty:
+        return
+    r = customer_df.iloc[0].drop(labels=["case_nr"], errors="ignore")
+    tdf = pd.DataFrame({"Item": [snake_to_camel(c) for c in r.index],
+                        "Value": r.values})
+    tag = "<<Customer_Info>>"
+    low = tag.lower()
+    for p in doc.paragraphs:
+        if low in p.text.lower():
+            wipe(p.runs)
+            add_tbl_after(doc, p._p, tdf)
+            break
 
-def insert_transactions(doc, tag, sheets, cid):
-    anchor = None
-    for idx, df in enumerate(sheets, 1):
-        f = df[df["case_nr"].astype(str).str.strip() == cid]
-        if f.empty: continue
-        f = f.drop(columns=["case_nr"])
-        if anchor is None:
-            anchor = insert_table_at_tag(doc, tag, f)
+def insert_transactions(doc, cid):
+    # locate the placeholder paragraph
+    tag = "<<Holds and Funds>>"
+    ph_para = None
+    for p in doc.paragraphs:
+        if tag.lower() in p.text.lower():
+            ph_para = p
+            break
+    if ph_para is None:
+        return
+
+    wipe(ph_para.runs)                      # remove placeholder text
+    anchor = ph_para._p                     # we will insert AFTER this
+
+    # open landscape section
+    start_landscape_block(doc)
+
+    # build Sheet1..3 tables
+    for idx, sheet in enumerate((df_s1, df_s2, df_s3), 1):
+        part = sheet[sheet["case_nr"].astype(str).str.strip() == cid]
+        if part.empty:
+            continue
+        part = strip_time(part.drop(columns=["case_nr"]))
+        if anchor is ph_para._p:
+            anchor = add_tbl_after(doc, anchor, part)
         else:
-            anchor = add_after(doc, anchor, f, f"Transactions Sheet{idx}")
+            hdr = f"Transactions Sheet{idx}"
+            para_hdr = doc.add_paragraph(hdr); para_hdr.bold = True
+            para_el = para_hdr._p
+            body = para_el.getparent(); body.remove(para_el); anchor.addnext(para_el)
+            anchor = para_el
+            anchor = add_tbl_after(doc, anchor, part)
 
-def insert_customer_info(doc, tag, df):
-    if df.empty: return
-    row = df.iloc[0].drop(labels=["case_nr"], errors="ignore")
-    tdf = pd.DataFrame({"Item": row.index, "Value": row.values})
-    insert_table_at_tag(doc, tag, tdf)
+    # close landscape, resume portrait
+    end_portrait_block(doc)
 
+# ---------- MAIN LOOP ------------------------------------------------------
 os.makedirs(output_dir, exist_ok=True)
 
 for _, rec in df_main.iterrows():
     cid = str(rec.get("caseid", "")).strip()
     doc = Document(template_path)
 
-    mapping = {c.lower(): ("" if pd.isna(rec[c]) else str(rec[c])) for c in df_main.columns}
-    fill_table_right_cell(doc, mapping)
-    fill_text_placeholder(doc, mapping)
+    fill_table_right_cell(doc, rec)
+    fill_text_placeholders(doc, rec)
 
     cust = df_customer[df_customer["case_nr"].astype(str).str.strip() == cid]
-    insert_customer_info(doc, "<<Customer_Info>>", cust)
-
-    insert_transactions(doc, "<<Holds and Funds>>", [df_s1, df_s2, df_s3], cid)
+    insert_customer_info(doc, cust)
+    insert_transactions(doc, cid)
 
     out = os.path.join(output_dir, f"DPG_Case_{cid}.docx")
     doc.save(out)
