@@ -1,88 +1,100 @@
-import os
-import pandas as pd
+# -*- coding: utf-8 -*-
+import os, pandas as pd
 from docx import Document
 
 template_path = r"/workspace2/cdar/data/discovery/Modified_Template.docx"
-output_dir = r"/workspace2/cdar/data/discovery/new_output"
-excel_main_path = r"/workspace2/cdar/data/discovery/Data_for_Discovery_template2.xlsx"
-excel_customer_path = r"/workspace2/cdar/data/discovery/DPG_Customer_Info.xlsx"
+output_dir    = r"/workspace2/cdar/data/discovery/new_output"
+excel_main_path         = r"/workspace2/cdar/data/discovery/Data_for_Discovery_template2.xlsx"
+excel_customer_path     = r"/workspace2/cdar/data/discovery/DPG_Customer_Info.xlsx"
 excel_transactions_path = r"/workspace2/cdar/data/discovery/DPG_Transactions.xlsx"
 
-df_main = pd.read_excel(excel_main_path, dtype=str, engine="openpyxl")
-df_customer = pd.read_excel(excel_customer_path, dtype=str, engine="openpyxl")
-df_sheet1 = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
-df_sheet2 = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
-df_sheet3 = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
+df_main     = pd.read_excel(excel_main_path,      dtype=str, engine="openpyxl")
+df_customer = pd.read_excel(excel_customer_path,  dtype=str, engine="openpyxl")
+df_s1 = pd.read_excel(excel_transactions_path, sheet_name="Sheet1", dtype=str, engine="openpyxl")
+df_s2 = pd.read_excel(excel_transactions_path, sheet_name="Sheet2", dtype=str, engine="openpyxl")
+df_s3 = pd.read_excel(excel_transactions_path, sheet_name="Sheet3", dtype=str, engine="openpyxl")
 
-for d in (df_main, df_customer, df_sheet1, df_sheet2, df_sheet3):
+for d in (df_main, df_customer, df_s1, df_s2, df_s3):
     d.columns = d.columns.str.strip().str.lower()
 
-def insert_df_as_table_at_tag(doc, tag, df):
-    tag_lc = tag.lower()
+def fill_table_right_cell(doc, m):
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            if len(row.cells) < 2: continue
+            k = row.cells[0].text.strip().lower()
+            if k in m: row.cells[1].text = str(m[k])
+
+def fill_text_placeholder(doc, m):
     for p in doc.paragraphs:
-        if tag_lc in p.text.lower():
-            _delete(p.runs, tag)
+        for k, v in m.items():
+            tag = f"<<{k}>>"
+            if tag.lower() in p.text.lower():
+                for r in p.runs:
+                    if tag.lower() in r.text.lower():
+                        r.text = r.text.replace(tag, str(v))
+
+def _table_after(doc, anchor, df):
+    t = doc.add_table(rows=1, cols=len(df.columns)); t.style = "Table Grid"
+    for i, c in enumerate(df.columns): t.rows[0].cells[i].text = str(c)
+    for _, r in df.iterrows():
+        cells = t.add_row().cells
+        for i, c in enumerate(df.columns): cells[i].text = str(r[c])
+    el = t._tbl; body = el.getparent(); body.remove(el); anchor.addnext(el); return el
+
+def _clear_paragraph(p): 
+    for r in p.runs: r.text = ""
+
+def insert_table_at_tag(doc, tag, df):
+    tl = tag.lower()
+    for p in doc.paragraphs:
+        if tl in p.text.lower():
+            _clear_paragraph(p)
             return _table_after(doc, p._p, df)
     for tbl in doc.tables:
         for cell in tbl.cells:
-            if tag_lc in cell.text.lower():
-                _delete(cell.paragraphs[0].runs, tag)
+            if tl in cell.text.lower():
+                cell.text = ""
                 return _table_after(doc, cell._tc, df)
     return None
 
-def _delete(runs, tag):
-    tag_lc = tag.lower()
-    for r in runs:
-        if tag_lc in r.text.lower():
-            r.text = r.text.replace(tag, "")
-
-def _table_after(doc, anchor, df):
-    t = doc.add_table(rows=1, cols=len(df.columns))
-    t.style = "Table Grid"
-    for i, c in enumerate(df.columns):
-        t.rows[0].cells[i].text = str(c)
-    for _, row in df.iterrows():
-        cells = t.add_row().cells
-        for i, c in enumerate(df.columns):
-            cells[i].text = str(row[c])
-    el = t._tbl
-    body = el.getparent()
-    body.remove(el)
-    anchor.addnext(el)
-    return el
-
-def add_table_after(doc, anchor, df, heading=None):
+def add_after(doc, anchor, df, heading=None):
     if heading:
-        p = doc.add_paragraph(heading)
-        p.bold = True
-        pel = p._p
-        body = pel.getparent()
-        body.remove(pel)
-        anchor.addnext(pel)
-        anchor = pel
+        p = doc.add_paragraph(heading); p.bold = True
+        pel = p._p; body = pel.getparent(); body.remove(pel); anchor.addnext(pel); anchor = pel
     return _table_after(doc, anchor, df)
 
-def insert_transactions(doc, tag, sheets, case_id):
+def insert_transactions(doc, tag, sheets, cid):
     anchor = None
     for idx, df in enumerate(sheets, 1):
-        f = df[df["case_nr"].astype(str).str.strip() == case_id]
-        if f.empty:
-            continue
+        f = df[df["case_nr"].astype(str).str.strip() == cid]
+        if f.empty: continue
+        f = f.drop(columns=["case_nr"])
         if anchor is None:
-            anchor = insert_df_as_table_at_tag(doc, tag, f.drop(columns=["case_nr"]))
+            anchor = insert_table_at_tag(doc, tag, f)
         else:
-            hdr = "Transactions Sheet{}".format(idx)
-            anchor = add_table_after(doc, anchor, f.drop(columns=["case_nr"]), hdr)
+            anchor = add_after(doc, anchor, f, f"Transactions Sheet{idx}")
+
+def insert_customer_info(doc, tag, df):
+    if df.empty: return
+    row = df.iloc[0].drop(labels=["case_nr"], errors="ignore")
+    tdf = pd.DataFrame({"Item": row.index, "Value": row.values})
+    insert_table_at_tag(doc, tag, tdf)
 
 os.makedirs(output_dir, exist_ok=True)
 
 for _, rec in df_main.iterrows():
-    case_id = str(rec.get("caseid", "")).strip()
+    cid = str(rec.get("caseid", "")).strip()
     doc = Document(template_path)
-    cust = df_customer[df_customer["case_nr"].astype(str).str.strip() == case_id]
-    if not cust.empty:
-        insert_df_as_table_at_tag(doc, "<<Customer_Info>>", cust.drop(columns=["case_nr"]))
-    insert_transactions(doc, "<<Holds and Funds>>", [df_sheet1, df_sheet2, df_sheet3], case_id)
-    out_path = os.path.join(output_dir, "DPG_Case_{}.docx".format(case_id))
-    doc.save(out_path)
-    print("Created {}".format(out_path))
+
+    mapping = {c.lower(): ("" if pd.isna(rec[c]) else str(rec[c])) for c in df_main.columns}
+    fill_table_right_cell(doc, mapping)
+    fill_text_placeholder(doc, mapping)
+
+    cust = df_customer[df_customer["case_nr"].astype(str).str.strip() == cid]
+    insert_customer_info(doc, "<<Customer_Info>>", cust)
+
+    insert_transactions(doc, "<<Holds and Funds>>", [df_s1, df_s2, df_s3], cid)
+
+    out = os.path.join(output_dir, f"DPG_Case_{cid}.docx")
+    doc.save(out)
+    print("Created", out)
