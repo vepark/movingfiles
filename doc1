@@ -1,158 +1,171 @@
+# ─────────────────────────────  libraries  ──────────────────────────────
 from docx import Document
-from docx.shared import Pt
 from docx.enum.section import WD_SECTION, WD_ORIENT
 import pandas as pd
-import os
+import re, os
 
-# Map Word labels to Excel columns with exact tuple keys
+# ───────────────────────────  CONFIGURE PATHS  ──────────────────────────
+BASE = "/workspace2/cdar/data/discovery"                    # ← change if needed
+template_path           = os.path.join(BASE, "Modified_Template.docx")
+excel_main_path         = os.path.join(BASE, "Data_for_Discovery_template2.xlsx")
+excel_customer_path     = os.path.join(BASE, "DPG_Customer_Info.xlsx")
+excel_transactions_path = os.path.join(BASE, "DPG_Transactions.xlsx")
+output_dir              = os.path.join(BASE, "new_output")
+
+# ──────────────  EXACT label→column map (tuple keys for complaints)  ────
 label_to_column = {
-    ("Case ID",): "CaseID",
-    ("Case Owner",): "CaseOwner",
-    ("Customer (Complainant) Name",): "CustomerName",
-    ("Customer Number (ECN)",): "ECN",
-    ("Original Note Summary",): "OriginalNote",
-    ("Updated Note Summary",): "UpdatedNote",
-    ("Response Bullet List",): "ResponseBulletList",
-    ("<<RelatedCasesRecontact>>",): "RelatedCasesRecontact",
-    ("<<CrossLineBusinessCase>>",): "CrossLineBusinessCase",
-    ("<<CallReviews>>",): "CallReviews",
-    ("<<RiskIndicators>>",): "RiskIndicators",
-    ("Primary Complaint", "Enter Customer Problem and Description"): "Primary_Description",
-    ("Primary Complaint", "List details from the complaint"): "Primary_Details",
-    ("Primary Complaint", "Cite documents, tools, systems"): "Primary_Citations",
-    ("Primary Complaint", "Summarize findings of the research"): "Primary_Summary",
-    ("Secondary Complaint", "Enter Customer Problem and Description"): "Secondary_Description",
-    ("Secondary Complaint", "List details from the complaint"): "Secondary_Details",
-    ("Secondary Complaint", "Cite documents, tools, systems"): "Secondary_Citations",
-    ("Secondary Complaint", "Summarize findings of the research"): "Secondary_Summary",
+    "Case ID":                                     "CaseID",
+    "Case Owner":                                  "CaseOwner",
+    "Customer (Complainant) Name":                 "CustomerName",
+    "Customer Number (ECN)":                       "ECN",
+    "Original Note Summary":                       "OriginalNote",
+    "Updated Note Summary":                        "UpdatedNote",
+    "Response Bullet List":                        "ResponseBulletList",
+    "<<RelatedCasesRecontact>>":                   "RelatedCasesRecontact",
+    "<<CrossLineBusinessCase>>":                   "CrossLineBusinessCase",
+    "<<CallReviews>>":                             "CallReviews",
+    "<<RiskIndicators>>":                          "RiskIndicators",
+
+    ("Primary Complaint",   "Enter Customer Problem and Description"):  "Primary_Description",
+    ("Primary Complaint",   "List details from the complaint"):         "Primary_Details",
+    ("Primary Complaint",   "Cite documents, tools, systems"):          "Primary_Citations",
+    ("Primary Complaint",   "Summarize findings of the research"):      "Primary_Summary",
+
+    ("Secondary Complaint", "Enter Customer Problem and Description"):  "Secondary_Description",
+    ("Secondary Complaint", "List details from the complaint"):         "Secondary_Details",
+    ("Secondary Complaint", "Cite documents, tools, systems"):          "Secondary_Citations",
+    ("Secondary Complaint", "Summarize findings of the research"):      "Secondary_Summary",
+
     ("Additional Complaint(s)", "Enter Customer Problem and Description"): "Additional_Description",
-    ("Additional Complaint(s)", "List details from the complaint"): "Additional_Details",
-    ("Additional Complaint(s)", "Cite documents, tools, systems"): "Additional_Citations",
-    ("Additional Complaint(s)", "Summarize findings of the research"): "Additional_Summary",
-    ("<<WF_TPError>>",): "WF_TPError",
-    ("<<ReliefType>>",): "ReliefType",
-    ("Enter reason for relief:",): "Relief_Reason",
-    ("<<Resolution>>",): "Resolution",
-    ("Note Resolution:",): "Resolution_Note"
+    ("Additional Complaint(s)", "List details from the complaint"):        "Additional_Details",
+    ("Additional Complaint(s)", "Cite documents, tools, systems"):         "Additional_Citations",
+    ("Additional Complaint(s)", "Summarize findings of the research"):     "Additional_Summary",
+
+    "<<WF_TPError>>":                            "WF_TPError",
+    "<<ReliefType>>":                            "ReliefType",
+    "Enter reason for relief:":                  "Relief_Reason",
+    "<<Resolution>>":                            "Resolution",
+    "Note Resolution:":                          "Resolution_Note"
 }
 
-def fill_table_right_cell(table, label_to_value):
+# ───────────────────────  SECTION 1-3 HELPERS  ──────────────────────────
+def fill_table_cells(table, vals):
+    """Populate right-hand cells according to section + prompt."""
     section = None
     for row in table.rows:
         for i, cell in enumerate(row.cells):
-            text = cell.text.strip()
-            if text in ["Primary Complaint", "Secondary Complaint", "Additional Complaint(s)"]:
-                section = text
-            for label, column in label_to_column.items():
-                if section and section in label:
-                    if isinstance(label, tuple) and len(label) > 1:
-                        sec, start = label
-                        if section == sec and text.startswith(start) and i + 1 < len(row.cells):
-                            row.cells[i + 1].text = label_to_value.get(column, "")
-                    elif len(label) == 1 and text.startswith(label[0]) and i + 1 < len(row.cells):
-                        row.cells[i + 1].text = label_to_value.get(column, "")
+            txt = cell.text.strip()
+            if txt in ("Primary Complaint", "Secondary Complaint", "Additional Complaint(s)"):
+                section = txt
+                continue
+            for key, col in label_to_column.items():
+                if isinstance(key, tuple):               # complaint prompt
+                    sec, prompt = key
+                    if section == sec and txt.startswith(prompt) and i + 1 < len(row.cells):
+                        row.cells[i + 1].text = vals.get(col, "")
+                elif txt.startswith(key) and i + 1 < len(row.cells):
+                    row.cells[i + 1].text = vals.get(col, "")
 
-def fill_text_placeholders(doc, label_to_value):
+def replace_placeholders(doc, vals):
+    """Replace every <<placeholder>> with its value."""
     for p in doc.paragraphs:
-        for label, column in label_to_column.items():
-            if len(label) == 1:
-                tag = label[0]
-                if tag in p.text:
-                    for r in p.runs:
-                        r.text = r.text.replace(tag, label_to_value.get(column, ""))
+        for key, col in label_to_column.items():
+            if isinstance(key, str) and key.startswith("<<") and key in p.text:
+                p.text = p.text.replace(key, vals.get(col, ""))
+    for cell in doc.tables[0]._cells:  # quick scan of all cells
+        for key, col in label_to_column.items():
+            if isinstance(key, str) and key.startswith("<<") and key in cell.text:
+                cell.text = cell.text.replace(key, vals.get(col, ""))
 
-def snake_to_camel(s):
-    parts = s.split("_")
-    return parts[0].capitalize() + ''.join(x.capitalize() for x in parts[1:])
+# ────────────────────────  SECTION 4 HELPERS  ───────────────────────────
+def snake_to_camel(s):  #  acct_num → AcctNum
+    a=s.split("_");return a[0].capitalize()+"".join(w.capitalize() for w in a[1:])
 
-def strip_time_cols(df):
-    return df.applymap(lambda x: x.split()[0] if isinstance(x, str) and " " in x and x.endswith("00:00:00") else x)
+def strip_time(df):
+    """Remove trailing ‘ 00:00:00’ from any datetime-like string."""
+    return df.applymap(lambda x: re.sub(r"\s00:00:00$","",str(x)) if isinstance(x,str) else x)
 
-def insert_customer_info(doc, customer_df):
-    if customer_df.empty:
-        return
-    customer_df = customer_df.drop(columns=["Case_Nr"], errors="ignore")
-    customer_df = customer_df.iloc[0]
-    table_data = pd.DataFrame({
-        "Item": [snake_to_camel(c) for c in customer_df.index],
-        "Value": customer_df.values
-    })
+def insert_customer_info(doc, df):
+    if df.empty: return
+    rec = df.drop(columns=["Case_Nr"], errors="ignore").iloc[0]
+    tbl = doc.add_table(rows=1, cols=2); tbl.style = "Table Grid"
+    tbl.rows[0].cells[0].text, tbl.rows[0].cells[1].text = "Item", "Value"
+    for item, val in rec.items():
+        cells = tbl.add_row().cells
+        cells[0].text = snake_to_camel(item)
+        cells[1].text = str(val)
+    # place after tag
     for p in doc.paragraphs:
         if "<<Customer_Info>>" in p.text:
-            for r in p.runs:
-                r.text = ""
-            t = doc.add_table(rows=1, cols=2)
-            t.style = "Table Grid"
-            t.rows[0].cells[0].text = "Item"
-            t.rows[0].cells[1].text = "Value"
-            for _, row in table_data.iterrows():
-                cells = t.add_row().cells
-                cells[0].text = str(row["Item"])
-                cells[1].text = str(row["Value"])
-            break
+            p.clear(); p._p.addnext(tbl._tbl); break
 
-def insert_transactions(doc, dfs, case_id):
+def insert_transactions(doc, cid, sheets):
     ph = next((p for p in doc.paragraphs if "<<Holds and Funds>>" in p.text), None)
-    if ph:
-        for r in ph.runs:
-            r.text = ""
-        section = doc.add_section(WD_SECTION.NEW_PAGE)
-        section.orientation = WD_ORIENT.LANDSCAPE
-        section.page_width, section.page_height = section.page_height, section.page_width
-        anchor = ph._p
-        for idx, df in enumerate(dfs, 1):
-            part = df[df["case_nr"].astype(str).str.strip() == case_id]
-            if part.empty:
-                continue
-            part = part.drop(columns=["case_nr"], errors="ignore")
-            part = strip_time_cols(part)
-            t = doc.add_table(rows=1, cols=len(part.columns))
-            t.style = "Table Grid"
+    if not ph: return
+    ph.clear()
+
+    # switch to landscape
+    sec = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec.orientation = WD_ORIENT.LANDSCAPE
+    sec.page_width, sec.page_height = sec.page_height, sec.page_width
+    anchor = ph._p
+
+    for idx, df in enumerate(sheets, 1):
+        part = df[df["case_nr"].astype(str).str.strip() == cid]
+        if part.empty: continue
+        part = strip_time(part.drop(columns=["case_nr"]))
+        t = doc.add_table(rows=1, cols=len(part.columns)); t.style = "Table Grid"
+        for j, c in enumerate(part.columns):
+            t.rows[0].cells[j].text = snake_to_camel(c)
+        for _, r in part.iterrows():
+            rw = t.add_row().cells
             for j, c in enumerate(part.columns):
-                t.rows[0].cells[j].text = snake_to_camel(c)
-            for _, row in part.iterrows():
-                cells = t.add_row().cells
-                for j, c in enumerate(part.columns):
-                    cells[j].text = str(row[c])
-            el = t._tbl
-            body = el.getparent()
-            body.remove(el)
-            anchor.addnext(el)
-            anchor = el
-        sec2 = doc.add_section(WD_SECTION.NEW_PAGE)
-        sec2.orientation = WD_ORIENT.PORTRAIT
-        sec2.page_width, sec2.page_height = sec2.page_height, sec2.page_width
+                rw[j].text = str(r[c])
+        anchor.addnext(t._tbl); anchor = t._tbl
 
-# Paths
-BASE = "/workspace2/cdar/data/discovery"
-template_path = os.path.join(BASE, "Modified_Template.docx")
-output_dir = os.path.join(BASE, "new_output")
-excel_main = os.path.join(BASE, "Data_for_Discovery_template2.xlsx")
-customer_info_path = os.path.join(BASE, "DPG_Customer_Info.xlsx")
-transactions_path = os.path.join(BASE, "DPG_Transactions.xlsx")
+    # back to portrait
+    sec2 = doc.add_section(WD_SECTION.NEW_PAGE)
+    sec2.orientation = WD_ORIENT.PORTRAIT
+    sec2.page_width, sec2.page_height = sec2.page_height, sec2.page_width
 
-# Load data
-df_main = pd.read_excel(excel_main, dtype=str)
-df_customer = pd.read_excel(customer_info_path, dtype=str)
-df_s1 = pd.read_excel(transactions_path, sheet_name="Sheet1", dtype=str)
-df_s2 = pd.read_excel(transactions_path, sheet_name="Sheet2", dtype=str)
-df_s3 = pd.read_excel(transactions_path, sheet_name="Sheet3", dtype=str)
-df_main.columns = df_main.columns.str.strip()
-df_customer.columns = df_customer.columns.str.strip()
-for df in (df_s1, df_s2, df_s3):
-    df.columns = df.columns.str.strip().str.lower()
+# ────────────────────  WRAPPER: GENERATE DOCUMENTS  ───────────────────────
+def generate_documents(excel_main, excel_cust, excel_trx, template, out_dir):
+    df_main = pd.read_excel(excel_main, dtype=str)
+    df_c   = pd.read_excel(excel_cust, dtype=str)
+    s1     = pd.read_excel(excel_trx, sheet_name="Sheet1", dtype=str)
+    s2     = pd.read_excel(excel_trx, sheet_name="Sheet2", dtype=str)
+    s3     = pd.read_excel(excel_trx, sheet_name="Sheet3", dtype=str)
 
-# Generate
-os.makedirs(output_dir, exist_ok=True)
-for _, row in df_main.iterrows():
-    doc = Document(template_path)
-    label_to_value = {col: str(row[col]).strip() if pd.notnull(row[col]) else "" for col in df_main.columns}
-    for table in doc.tables:
-        fill_table_right_cell(table, label_to_value)
-    fill_text_placeholders(doc, label_to_value)
-    cid = str(row["CaseID"]).strip()
-    insert_customer_info(doc, df_customer[df_customer["Case_Nr"].astype(str).str.strip() == cid])
-    insert_transactions(doc, [df_s1, df_s2, df_s3], cid)
-    out = os.path.join(output_dir, f"DPG_Case_{cid}.docx")
-    doc.save(out)
-    print("Created", out)
+    df_main.columns = df_main.columns.str.strip()
+    df_c.columns    = df_c.columns.str.strip()
+    for d in (s1, s2, s3): d.columns = d.columns.str.strip().str.lower()
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    for _, row in df_main.iterrows():
+        vals = {c:("" if pd.isna(row[c]) else str(row[c]).strip()) for c in df_main.columns}
+        doc  = Document(template)
+
+        # section 1-3
+        for tbl in doc.tables: fill_table_cells(tbl, vals)
+        replace_placeholders(doc, vals)
+
+        # section 4.1
+        cid = str(row["CaseID"]).strip()
+        insert_customer_info(doc, df_c[df_c["Case_Nr"].astype(str).str.strip()==cid])
+
+        # section 4.3
+        insert_transactions(doc, cid, [s1, s2, s3])
+
+        out_file = os.path.join(out_dir, f"DPG_Case_{cid}.docx")
+        doc.save(out_file)
+        print("✓ ", out_file)
+
+# ────────────────────────────  RUN ONCE  ──────────────────────────────────
+generate_documents(
+    excel_main_path,
+    excel_customer_path,
+    excel_transactions_path,
+    template_path,
+    output_dir
+)
