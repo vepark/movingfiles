@@ -3,14 +3,14 @@ from docx.enum.section import WD_SECTION, WD_ORIENT
 import pandas as pd, re, os
 
 # ────────────────────────  PATHS  ───────────────────────────────
-BASE = "/workspace2/cdar/data/discovery"
+BASE = "/workspace2/cdar/data/discovery"          #  ← adjust if needed
 template_path           = os.path.join(BASE, "Modified_Template.docx")
 excel_main_path         = os.path.join(BASE, "Data_for_Discovery_template2.xlsx")
 excel_customer_path     = os.path.join(BASE, "DPG_Customer_Info.xlsx")
 excel_transactions_path = os.path.join(BASE, "DPG_Transactions.xlsx")
 output_dir              = os.path.join(BASE, "new_output")
 
-# ────────── exact label→column mapping (tuple keys for complaints) ─────────
+# ────────── exact label→column mapping (tuple keys for complaints) ────────
 label_to_column = {
     "Case ID": "CaseID",
     "Case Owner": "CaseOwner",
@@ -46,7 +46,7 @@ label_to_column = {
     "Note Resolution:": "Resolution_Note"
 }
 
-# ───────────────── SECTION-1-3 HELPERS ──────────────────────────
+# ────────────────────  SECTION-1-3 HELPERS  ───────────────────────────────
 def fill_table_cells(table, vals):
     section = None
     for row in table.rows:
@@ -70,28 +70,27 @@ def replace_placeholders(doc, vals):
                 for r in p.runs:
                     if key in r.text:
                         r.text = r.text.replace(key, vals.get(col, ""))
-    for cell in doc.tables[0]._cells:          # scan every cell once
+    for cell in doc.tables[0]._cells:  # quick scan
         for key, col in label_to_column.items():
             if isinstance(key, str) and key.startswith("<<") and key in cell.text:
                 cell.text = cell.text.replace(key, vals.get(col, ""))
 
-# ───────────────── SECTION-4 HELPERS ────────────────────────────
+# ────────────────────  SECTION-4 HELPERS  ────────────────────────────────
 def snake_to_camel(s):
-    parts=s.split("_")
-    return parts[0].capitalize()+"".join(w.capitalize() for w in parts[1:])
+    parts = s.split("_")
+    return parts[0].capitalize() + "".join(w.capitalize() for w in parts[1:])
 
 def strip_time(df):
-    return df.applymap(lambda x: re.sub(r"\s00:00:00$","",str(x))
-                       if isinstance(x,str) else x)
+    return df.applymap(lambda x: re.sub(r"\s00:00:00$","",str(x)) if isinstance(x,str) else x)
 
 def insert_customer_info(doc, df):
     if df.empty: return
     rec = df.drop(columns=["Case_Nr"], errors="ignore").iloc[0]
-    tbl = doc.add_table(rows=1, cols=2); tbl.style="Table Grid"
+    tbl = doc.add_table(rows=1, cols=2); tbl.style = "Table Grid"
     tbl.rows[0].cells[0].text, tbl.rows[0].cells[1].text = "Item", "Value"
-    for k,v in rec.items():
-        cells = tbl.add_row().cells
-        cells[0].text, cells[1].text = snake_to_camel(k), str(v)
+    for k, v in rec.items():
+        rw = tbl.add_row().cells
+        rw[0].text, rw[1].text = snake_to_camel(k), str(v)
     for p in doc.paragraphs:
         if "<<Customer_Info>>" in p.text:
             p.clear(); p._p.addnext(tbl._tbl); break
@@ -101,61 +100,68 @@ def insert_transactions(doc, cid, sheets):
     if not tag: return
     tag.clear()
 
-    # continuous section break to landscape (no new blank page)
     sec = doc.add_section(WD_SECTION.CONTINUOUS)
     sec.orientation = WD_ORIENT.LANDSCAPE
     sec.page_width, sec.page_height = sec.page_height, sec.page_width
-
     anchor = tag._p
-    wrote_any = False
+    wrote = False
+
     for df in sheets:
         part = df[df["case_nr"].astype(str).str.strip() == cid]
         if part.empty: continue
-        wrote_any = True
+        wrote = True
         part = strip_time(part.drop(columns=["case_nr"]))
-        t = doc.add_table(rows=1, cols=len(part.columns)); t.style="Table Grid"
-        for j,c in enumerate(part.columns):
-            t.rows[0].cells[j].text = snake_to_camel(c)
-        for _,r in part.iterrows():
-            rw = t.add_row().cells
-            for j,c in enumerate(part.columns):
-                rw[j].text = str(r[c])
+        t = doc.add_table(rows=1, cols=len(part.columns)); t.style = "Table Grid"
+        for j, col in enumerate(part.columns):
+            run = t.rows[0].cells[j].paragraphs[0].add_run(snake_to_camel(col))
+            run.bold = True
+        for _, r in part.iterrows():
+            cells = t.add_row().cells
+            for j, col in enumerate(part.columns):
+                cells[j].text = str(r[col])
         anchor.addnext(t._tbl); anchor = t._tbl
 
-    # back to portrait only if something was inserted
-    if wrote_any:
+        # blank line
+        blank = doc.add_paragraph()
+        anchor.addnext(blank._p); anchor = blank._p
+
+    if wrote:
         sec2 = doc.add_section(WD_SECTION.CONTINUOUS)
         sec2.orientation = WD_ORIENT.PORTRAIT
         sec2.page_width, sec2.page_height = sec2.page_height, sec2.page_width
 
-# ────────────────────  GENERATE DOCS (wrapper)  ───────────────────────────
-def generate_documents(excel_main, excel_cust, excel_trx, template, out_dir):
-    dm   = pd.read_excel(excel_main, dtype=str).rename(columns=str.strip)
-    dc   = pd.read_excel(excel_cust, dtype=str).rename(columns=str.strip)
-    s1   = pd.read_excel(excel_trx, sheet_name="Sheet1", dtype=str)
-    s2   = pd.read_excel(excel_trx, sheet_name="Sheet2", dtype=str)
-    s3   = pd.read_excel(excel_trx, sheet_name="Sheet3", dtype=str)
-    for d in (s1,s2,s3): d.columns = d.columns.str.strip().str.lower()
+# ────────────────────  GENERATOR WRAPPER  ────────────────────────────────
+def generate_documents(main_xlsx, cust_xlsx, trx_xlsx, template, out_dir):
+    dm = pd.read_excel(main_xlsx, dtype=str).rename(columns=str.strip)
+    dc = pd.read_excel(cust_xlsx, dtype=str).rename(columns=str.strip)
+    s1 = pd.read_excel(trx_xlsx, sheet_name="Sheet1", dtype=str)
+    s2 = pd.read_excel(trx_xlsx, sheet_name="Sheet2", dtype=str)
+    s3 = pd.read_excel(trx_xlsx, sheet_name="Sheet3", dtype=str)
+    s4 = pd.read_excel(trx_xlsx, sheet_name="Sheet4", dtype=str)  # NEW sheet
+    for d in (s1, s2, s3, s4):
+        d.columns = d.columns.str.strip().str.lower()
 
     os.makedirs(out_dir, exist_ok=True)
 
     for _, row in dm.iterrows():
-        doc = Document(template)
         vals = {c:("" if pd.isna(row[c]) else str(row[c]).strip()) for c in dm.columns}
+        doc = Document(template)
 
-        # 1-3
-        for tbl in doc.tables: fill_table_cells(tbl, vals)
+        # Section 1-3
+        for tbl in doc.tables:
+            fill_table_cells(tbl, vals)
         replace_placeholders(doc, vals)
 
-        # 4.1
+        # Section 4.1
         cid = str(row["CaseID"]).strip()
-        insert_customer_info(doc, dc[dc["Case_Nr"].astype(str).str.strip()==cid])
+        insert_customer_info(doc, dc[dc["Case_Nr"].astype(str).str.strip() == cid])
 
-        # 4.3
-        insert_transactions(doc, cid, [s1,s2,s3])
+        # Section 4.3
+        insert_transactions(doc, cid, [s1, s2, s3, s4])
 
-        out = os.path.join(out_dir, f"DPG_Case_{cid}.docx")
-        doc.save(out); print("✓", out)
+        out_file = os.path.join(out_dir, f"DPG_Case_{cid}.docx")
+        doc.save(out_file)
+        print("✓", out_file)
 
 # ───────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
