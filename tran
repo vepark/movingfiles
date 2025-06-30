@@ -1,0 +1,46 @@
+def insert_transactions(doc, cid, sheets):
+    tag = next((p for p in doc.paragraphs if "<<Holds and Funds>>" in p.text), None)
+    if not tag:
+        return
+    tag.clear()
+
+    anchor = tag._p          # we’ll keep inserting right after this pointer
+
+    for df in sheets:
+        part = df[df["case_nr"].astype(str).str.strip() == cid]
+        if part.empty:
+            continue
+        part = part.drop(columns=["case_nr"]).applymap(
+            lambda v: re.sub(r"\s00:00:00$", "", str(v)) if isinstance(v, str) else v
+        )
+
+        tbl = doc.add_table(rows=1, cols=len(part.columns)); tbl.style = "Table Grid"
+
+        # header
+        for j, col in enumerate(part.columns):
+            run = tbl.rows[0].cells[j].paragraphs[0].add_run(
+                "".join(w.capitalize() for w in col.split("_"))
+            )
+            run.bold = True
+            run.font.size = Pt(8)
+
+        # data rows
+        for _, r in part.iterrows():
+            cells = tbl.add_row().cells
+            for j, col in enumerate(part.columns):
+                txt = "" if str(r[col]).lower() == "nan" else str(r[col])
+                cells[j].text = txt
+        for row in tbl.rows:                     # force 8-pt everywhere
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        run.font.size = Pt(8)
+        tbl.autofit = True
+
+        # insert table then a blank line **right after the current anchor**
+        anchor.addnext(tbl._tbl)
+        anchor = tbl._tbl
+
+        blank = doc.add_paragraph()
+        anchor.addnext(blank._p)
+        anchor = blank._p
