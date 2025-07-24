@@ -1,0 +1,47 @@
+proc sql;
+connect to oracle (
+    path="p01cnwrp"
+    authdomain=OracleAuthDomain
+    buffsize=165000
+    readbuff=100000
+);
+
+create table my_sas_table as
+select * from connection to oracle (%str(
+    WITH filtered_data AS (
+        SELECT
+            TRIM(LEADING '0' FROM REGEXP_REPLACE(pzinskey, '[^0-9]', '')) AS case_nr,
+            PXEXTRACTDATETIME
+        FROM OEMCCMPBIX.BIX_CMPL_WK
+        WHERE 
+            CYDATERECEIVEDBYWELLSFARGO >= SYSDATE - INTERVAL '5' DAY
+            AND COMPLAINTANYTYPE IN ('Customer - Consumer', 'Business or Commercial')
+            AND PYSTATUSWORK IN (
+                'Pending-PreSelfAssuranceReview',
+                'Pending-PreORRReview',
+                'Pending-FinalResponseDraft',
+                'Pending-ClosingAssessment'
+            )
+            AND (
+                FRCPRODUCTCLASS = 'Deposit / Money Movement'
+                OR PRIMARYPRODUCTTYPE LIKE '%Auto Loan%'
+            )
+            AND PXEXTRACTDATETIME >= SYSTIMESTAMP - INTERVAL '30' MINUTE
+    ),
+    ranked_data AS (
+        SELECT 
+            case_nr,
+            PXEXTRACTDATETIME,
+            ROW_NUMBER() OVER (
+                PARTITION BY case_nr
+                ORDER BY PXEXTRACTDATETIME DESC
+            ) AS rn
+        FROM filtered_data
+    )
+    SELECT case_nr, PXEXTRACTDATETIME
+    FROM ranked_data
+    WHERE rn = 1
+));
+
+disconnect from oracle;
+quit;
